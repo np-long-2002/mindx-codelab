@@ -15,13 +15,21 @@ from app.schemas.quiz import (
     QuizOptionOut,
     QuizAttemptOut,
 )
-from app.core.dependencies import get_current_user, require_teacher
+from app.core.dependencies import get_current_user, require_teacher, get_current_user_optional
 
 router = APIRouter(prefix="/quizzes", tags=["quizzes"])
 
 @router.get("", response_model=List[QuizOut])
-def list_quizzes(db: Session = Depends(get_db)):
-    quizzes = db.query(Quiz).order_by(Quiz.created_at.desc()).all()
+def list_quizzes(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    query = db.query(Quiz).order_by(Quiz.created_at.desc())
+    # If student or unauthenticated, only show assigned quizzes
+    if not current_user or current_user.role != "TEACHER":
+        query = query.filter(Quiz.is_assigned == True)
+
+    quizzes = query.all()
     results = []
     for q in quizzes:
         item = QuizOut.model_validate(q)
@@ -39,6 +47,13 @@ def get_quiz(
     if not quiz:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài trắc nghiệm")
 
+    # If student, check if quiz is assigned
+    if current_user.role != "TEACHER" and not quiz.is_assigned:
+        raise HTTPException(
+            status_code=403,
+            detail="Bài trắc nghiệm này chưa được giáo viên mở cho học viên làm!"
+        )
+
     # If teacher, return full details including correct answers
     if current_user.role == "TEACHER":
         out = QuizDetailTeacherOut.model_validate(quiz)
@@ -50,6 +65,24 @@ def get_quiz(
     out.question_count = len(quiz.questions)
     return out
 
+@router.patch("/{quiz_id}/toggle-assign", response_model=QuizOut)
+def toggle_assign_quiz(
+    quiz_id: int,
+    db: Session = Depends(get_db),
+    teacher: User = Depends(require_teacher)
+):
+    quiz = db.query(Quiz).filter(Quiz.id == quiz_id).first()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài trắc nghiệm")
+
+    quiz.is_assigned = not bool(quiz.is_assigned)
+    db.commit()
+    db.refresh(quiz)
+
+    item = QuizOut.model_validate(quiz)
+    item.question_count = len(quiz.questions)
+    return item
+
 @router.post("", response_model=QuizDetailTeacherOut)
 def create_quiz(
     quiz_in: QuizCreate,
@@ -60,6 +93,7 @@ def create_quiz(
         title=quiz_in.title,
         description=quiz_in.description,
         time_limit_minutes=quiz_in.time_limit_minutes,
+        is_assigned=quiz_in.is_assigned,
         author_id=teacher.id
     )
     db.add(quiz)
@@ -83,14 +117,16 @@ def create_quiz(
         db.add(question)
         db.flush()
 
-        for opt_idx, opt_data in enumerate(q_data.options):
-            option = QuizOption(
-                question_id=question.id,
-                option_text=opt_data.option_text,
-                is_correct=opt_data.is_correct,
-                order=opt_idx + 1
-            )
-            db.add(option)
+        # Only create options if provided (theory questions)
+        if q_data.options:
+            for opt_idx, opt_data in enumerate(q_data.options):
+                option = QuizOption(
+                    question_id=question.id,
+                    option_text=opt_data.option_text,
+                    is_correct=opt_data.is_correct,
+                    order=opt_idx + 1
+                )
+                db.add(option)
 
     db.commit()
     db.refresh(quiz)
@@ -122,34 +158,78 @@ def submit_quiz(
     if not quiz:
         raise HTTPException(status_code=404, detail="Không tìm thấy bài trắc nghiệm")
 
+    if current_user.role != "TEACHER" and not quiz.is_assigned:
+        raise HTTPException(
+            status_code=403,
+            detail="Bài trắc nghiệm này chưa được giáo viên mở cho học viên làm!"
+        )
+
     total_questions = len(quiz.questions)
     correct_count = 0
     results: List[QuestionResultOut] = []
 
     for q in quiz.questions:
-        selected_opt_id = submission.answers.get(q.id) or submission.answers.get(str(q.id))
-        correct_opt = next((opt for opt in q.options if opt.is_correct), None)
-        correct_opt_id = correct_opt.id if correct_opt else -1
-
-        is_correct = selected_opt_id is not None and selected_opt_id == correct_opt_id
-        if is_correct:
-            correct_count += 1
-
         q_type = getattr(q, 'question_type', None)
         if not q_type:
             q_type = "PRACTICE" if (q.test_cases and len(q.test_cases) > 0) else "THEORY"
 
-        results.append(QuestionResultOut(
-            question_id=q.id,
-            question_text=q.question_text,
-            question_type=q_type,
-            code_snippet=q.code_snippet,
-            selected_option_id=selected_opt_id,
-            correct_option_id=correct_opt_id,
-            is_correct=is_correct,
-            explanation=q.explanation,
-            options=[QuizOptionOut.model_validate(opt) for opt in q.options]
-        ))
+        if q_type == "PRACTICE":
+            # Practical question evaluated via practice_answers
+            p_data = (submission.practice_answers or {}).get(q.id) or (submission.practice_answers or {}).get(str(q.id)) or {}
+            is_correct = bool(p_data.get("passed", False))
+            student_code = p_data.get("code", "")
+            tests_passed = p_data.get("passed_count", 0)
+            total_tests = p_data.get("total_count", len(q.test_cases or []))
+
+            if is_correct:
+                correct_count += 1
+
+            results.append(QuestionResultOut(
+                question_id=q.id,
+                question_text=q.question_text,
+                question_type="PRACTICE",
+                code_snippet=q.code_snippet,
+                selected_option_id=None,
+                correct_option_id=None,
+                is_correct=is_correct,
+                explanation=q.explanation,
+                student_code=student_code,
+                tests_passed=tests_passed,
+                total_tests=total_tests,
+                options=[]
+            ))
+        else:
+            # Theory question evaluated via ABCD answers
+            selected_opt_id = submission.answers.get(q.id) or submission.answers.get(str(q.id))
+            if isinstance(selected_opt_id, dict):
+                selected_opt_id = None
+            else:
+                try:
+                    selected_opt_id = int(selected_opt_id) if selected_opt_id is not None else None
+                except (ValueError, TypeError):
+                    selected_opt_id = None
+
+            correct_opt = next((opt for opt in q.options if opt.is_correct), None)
+            correct_opt_id = correct_opt.id if correct_opt else -1
+
+            is_correct = selected_opt_id is not None and selected_opt_id == correct_opt_id
+            if is_correct:
+                correct_count += 1
+
+            results.append(QuestionResultOut(
+                question_id=q.id,
+                question_text=q.question_text,
+                question_type="THEORY",
+                code_snippet=q.code_snippet,
+                selected_option_id=selected_opt_id,
+                correct_option_id=correct_opt_id,
+                is_correct=is_correct,
+                explanation=q.explanation,
+                student_code=None,
+                tests_passed=None,
+                total_tests=None,
+                options=[QuizOptionOut.model_validate(opt) for opt in q.options]
+            ))
 
     score = correct_count
     percentage = round((score / total_questions * 100), 1) if total_questions > 0 else 0.0

@@ -34,6 +34,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(15);
+  const [isAssigned, setIsAssigned] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [questions, setQuestions] = useState<NewQuestion[]>([
@@ -61,12 +62,15 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
         code_snippet: '',
         explanation: '',
         test_cases: type === 'PRACTICE' ? [{ input: '', expected: '', is_hidden: false }] : [],
-        options: [
-          { option_text: '', is_correct: true },
-          { option_text: '', is_correct: false },
-          { option_text: '', is_correct: false },
-          { option_text: '', is_correct: false },
-        ],
+        options:
+          type === 'PRACTICE'
+            ? []
+            : [
+                { option_text: '', is_correct: true },
+                { option_text: '', is_correct: false },
+                { option_text: '', is_correct: false },
+                { option_text: '', is_correct: false },
+              ],
       },
     ]);
   };
@@ -74,8 +78,19 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
   const handleToggleQuestionType = (qIndex: number, type: 'THEORY' | 'PRACTICE') => {
     const updated = [...questions];
     updated[qIndex].question_type = type;
-    if (type === 'PRACTICE' && (!updated[qIndex].test_cases || updated[qIndex].test_cases!.length === 0)) {
-      updated[qIndex].test_cases = [{ input: '', expected: '', is_hidden: false }];
+    if (type === 'PRACTICE') {
+      if (!updated[qIndex].test_cases || updated[qIndex].test_cases!.length === 0) {
+        updated[qIndex].test_cases = [{ input: '', expected: '', is_hidden: false }];
+      }
+    } else {
+      if (!updated[qIndex].options || updated[qIndex].options.length === 0) {
+        updated[qIndex].options = [
+          { option_text: '', is_correct: true },
+          { option_text: '', is_correct: false },
+          { option_text: '', is_correct: false },
+          { option_text: '', is_correct: false },
+        ];
+      }
     }
     setQuestions(updated);
   };
@@ -185,10 +200,23 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
         alert(`Vui lòng nhập nội dung cho câu hỏi số ${i + 1}!`);
         return;
       }
-      const hasEmptyOption = q.options.some((o) => !o.option_text.trim());
-      if (hasEmptyOption) {
-        alert(`Câu hỏi số ${i + 1} có đáp án còn để trống, vui lòng điền đầy đủ!`);
-        return;
+      const isPractice =
+        q.question_type === 'PRACTICE' || (q.test_cases && q.test_cases.length > 0);
+      if (!isPractice) {
+        if (!q.options || q.options.length === 0) {
+          alert(`Câu hỏi trắc nghiệm số ${i + 1} phải có các đáp án lựa chọn!`);
+          return;
+        }
+        const hasEmptyOption = q.options.some((o) => !o.option_text.trim());
+        if (hasEmptyOption) {
+          alert(`Câu hỏi số ${i + 1} có đáp án còn để trống, vui lòng điền đầy đủ!`);
+          return;
+        }
+      } else {
+        if (!q.test_cases || q.test_cases.length === 0) {
+          alert(`Câu hỏi thực hành số ${i + 1} cần có ít nhất 1 test case để chấm điểm!`);
+          return;
+        }
       }
     }
 
@@ -198,6 +226,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
         title,
         description,
         time_limit_minutes: timeLimitMinutes,
+        is_assigned: isAssigned,
         questions: questions.map((q, idx) => {
           const isPractice =
             q.question_type === 'PRACTICE' || (q.test_cases && q.test_cases.length > 0);
@@ -208,11 +237,13 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
             explanation: q.explanation || null,
             test_cases: q.test_cases || [],
             order: idx + 1,
-            options: q.options.map((opt, oIdx) => ({
-              option_text: opt.option_text,
-              is_correct: opt.is_correct,
-              order: oIdx + 1,
-            })),
+            options: isPractice
+              ? []
+              : (q.options || []).map((opt, oIdx) => ({
+                  option_text: opt.option_text,
+                  is_correct: opt.is_correct,
+                  order: oIdx + 1,
+                })),
           };
         }),
       });
@@ -289,6 +320,36 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
               placeholder="Mô tả phạm vi kiến thức, mục tiêu của bài trắc nghiệm..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
             />
+          </div>
+
+          {/* Assignment Toggle */}
+          <div className="flex items-center justify-between p-4 bg-slate-950 border border-slate-800 rounded-xl">
+            <div>
+              <div className="text-xs font-semibold text-white flex items-center gap-2">
+                <span>Giao bài ngay cho học sinh</span>
+                {isAssigned ? (
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
+                    Đang bật (Học viên thấy đề này)
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full font-medium">
+                    Bản nháp (Chỉ giáo viên thấy)
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Nếu tắt, bài thi sẽ lưu ở trạng thái bản nháp. Giáo viên có thể bật giao bài sau ở danh sách đề.
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input
+                type="checkbox"
+                checked={isAssigned}
+                onChange={(e) => setIsAssigned(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+            </label>
           </div>
         </div>
 
@@ -445,93 +506,119 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
 
                 {/* Practical Question Info Banner */}
                 {isPractice && (
-                  <div className="bg-purple-950/30 border border-purple-500/30 rounded-xl p-3 text-xs text-purple-200 flex items-center gap-2.5">
-                    <Terminal className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                  <div className="bg-purple-950/40 border border-purple-500/40 rounded-xl p-3.5 text-xs text-purple-200 flex items-start gap-3">
+                    <Terminal className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-bold text-white">Chế độ Thực hành:</span> Câu hỏi này được thiết lập là bài tập thực hành. Học viên sẽ có trình soạn thảo Python và kiểm thử tự động với bộ Test Cases bên dưới trước khi chọn đáp án trắc nghiệm.
+                      <span className="font-bold text-white">Chế độ Thực hành (Tự động chấm bằng Test Cases):</span>{' '}
+                      Học viên sẽ trực tiếp gõ code trong Monaco Editor và chạy kiểm thử với các Test Cases bên dưới. Không cần tạo các đáp án trắc nghiệm A, B, C, D cho câu hỏi này.
                     </div>
                   </div>
                 )}
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Nội dung câu hỏi *
+                  Nội dung câu hỏi / Đề bài *
                 </label>
                 <input
                   type="text"
                   required
                   value={q.question_text}
                   onChange={(e) => handleQuestionChange(qIdx, 'question_text', e.target.value)}
-                  placeholder="Ví dụ: Lệnh nào sau đây dùng để xóa phần tử cuối cùng của list?"
+                  placeholder={
+                    isPractice
+                      ? 'Ví dụ: Viết chương trình tính tổng hai số a và b nhập từ bàn phím.'
+                      : 'Ví dụ: Lệnh nào sau đây dùng để xóa phần tử cuối cùng của list?'
+                  }
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">
-                  Đoạn code minh họa (Tùy chọn)
+                  {isPractice
+                    ? 'Mã nguồn khởi tạo / gợi ý (Starter code trong editor của học viên)'
+                    : 'Đoạn code minh họa (Tùy chọn)'}
                 </label>
                 <textarea
-                  rows={2}
+                  rows={isPractice ? 3 : 2}
                   value={q.code_snippet}
                   onChange={(e) => handleQuestionChange(qIdx, 'code_snippet', e.target.value)}
-                  placeholder="def my_func(): ... (nếu có)"
+                  placeholder={
+                    isPractice
+                      ? '# Nhập code gợi ý hoặc hàm khởi tạo cho học viên...\ndef solution():\n    pass'
+                      : 'def my_func(): ... (nếu có)'
+                  }
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-emerald-400 focus:outline-none focus:border-purple-500"
                 />
               </div>
 
-              {/* 4 Options */}
-              <div className="space-y-2 pt-2">
-                <label className="block text-xs font-medium text-slate-400">
-                  4 Lựa chọn (Chọn nút tròn để chỉ định đáp án đúng):
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {q.options.map((opt, optIdx) => (
-                    <div
-                      key={optIdx}
-                      className={`flex items-center gap-2 p-2.5 rounded-xl border transition ${
-                        opt.is_correct
-                          ? 'bg-emerald-950/30 border-emerald-500/50'
-                          : 'bg-slate-950 border-slate-800'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleSetCorrectOption(qIdx, optIdx)}
-                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition flex-shrink-0 ${
+              {/* 4 Options only for Theory questions */}
+              {!isPractice ? (
+                <div className="space-y-2 pt-2">
+                  <label className="block text-xs font-medium text-slate-400">
+                    4 Lựa chọn (Chọn nút tròn để chỉ định đáp án đúng):
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {q.options.map((opt, optIdx) => (
+                      <div
+                        key={optIdx}
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border transition ${
                           opt.is_correct
-                            ? 'bg-emerald-500 text-white'
-                            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            ? 'bg-emerald-950/30 border-emerald-500/50'
+                            : 'bg-slate-950 border-slate-800'
                         }`}
-                        title="Đánh dấu đây là đáp án đúng"
                       >
-                        {String.fromCharCode(65 + optIdx)}
-                      </button>
-                      <input
-                        type="text"
-                        required
-                        value={opt.option_text}
-                        onChange={(e) => handleOptionTextChange(qIdx, optIdx, e.target.value)}
-                        placeholder={`Đáp án ${String.fromCharCode(65 + optIdx)}`}
-                        className="w-full bg-transparent text-xs text-white focus:outline-none"
-                      />
-                      {opt.is_correct && (
-                        <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                      )}
-                    </div>
-                  ))}
+                        <button
+                          type="button"
+                          onClick={() => handleSetCorrectOption(qIdx, optIdx)}
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition flex-shrink-0 ${
+                            opt.is_correct
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                          }`}
+                          title="Đánh dấu đây là đáp án đúng"
+                        >
+                          {String.fromCharCode(65 + optIdx)}
+                        </button>
+                        <input
+                          type="text"
+                          required
+                          value={opt.option_text}
+                          onChange={(e) => handleOptionTextChange(qIdx, optIdx, e.target.value)}
+                          placeholder={`Đáp án ${String.fromCharCode(65 + optIdx)}`}
+                          className="w-full bg-transparent text-xs text-white focus:outline-none"
+                        />
+                        {opt.is_correct && (
+                          <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-slate-950/80 border border-purple-500/20 rounded-xl p-3 text-xs text-slate-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-purple-400" />
+                    <span>Bài thực hành được chấm điểm tự động dựa trên số Test Cases vượt qua (không dùng đáp án A, B, C, D).</span>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">
-                  Giải thích đáp án (Học sinh sẽ xem được sau khi nộp bài)
+                  {isPractice
+                    ? 'Giải thích / Hướng dẫn giải thuật (Học sinh xem sau khi nộp bài)'
+                    : 'Giải thích đáp án (Học sinh sẽ xem được sau khi nộp bài)'}
                 </label>
                 <input
                   type="text"
                   value={q.explanation}
                   onChange={(e) => handleQuestionChange(qIdx, 'explanation', e.target.value)}
-                  placeholder="Giải thích tại sao đáp án này đúng..."
+                  placeholder={
+                    isPractice
+                      ? 'Gợi ý thuật toán hoặc hướng dẫn giải quyết bài toán...'
+                      : 'Giải thích tại sao đáp án này đúng...'
+                  }
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-purple-300 focus:outline-none focus:border-purple-500"
                 />
               </div>

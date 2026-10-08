@@ -13,13 +13,13 @@ export const downloadQuizTemplate = () => {
   const headers = [
     'Câu hỏi (Bắt buộc)',
     'Đoạn code Python (Tùy chọn)',
-    'Đáp án A (Bắt buộc)',
-    'Đáp án B (Bắt buộc)',
-    'Đáp án C (Bắt buộc)',
-    'Đáp án D (Bắt buộc)',
-    'Đáp án đúng (A, B, C hoặc D)',
+    'Đáp án A (Lý thuyết)',
+    'Đáp án B (Lý thuyết)',
+    'Đáp án C (Lý thuyết)',
+    'Đáp án D (Lý thuyết)',
+    'Đáp án đúng (A, B, C, D - Lý thuyết)',
     'Giải thích chi tiết (Tùy chọn)',
-    'Test Cases dạng Input=>Output cách nhau bởi | (Tùy chọn)',
+    'Test Cases dạng Input=>Output cách nhau bởi | (Tùy chọn - Dành cho Thực hành)',
   ];
 
   const sampleData = [
@@ -46,14 +46,14 @@ export const downloadQuizTemplate = () => {
       '',
     ],
     [
-      'Đoạn code sau tính tổng hai số a và b. Test case kiểm thử là gì?',
-      'a = int(input())\nb = int(input())\nprint(a + b)',
-      '15',
-      '12',
-      '20',
-      '5',
-      'A',
-      'Đoạn code đọc a và b rồi in ra tổng a + b.',
+      'Viết chương trình nhập hai số nguyên a và b từ bàn phím (mỗi số một dòng), in ra tổng của chúng.',
+      '# Viết mã nguồn của bạn tại đây\na = int(input())\nb = int(input())\nprint(a + b)',
+      '',
+      '',
+      '',
+      '',
+      '',
+      'Đoạn code đọc hai số nguyên từ bàn phím và in tổng a + b ra màn hình.',
       '5\\n10=>15 | 2\\n3=>5',
     ],
     [
@@ -152,14 +152,16 @@ export const parseQuizExcel = (file: File): Promise<ParsedQuestion[]> => {
           else if (rawCorrect === 'C' || rawCorrect === '3') correctIndex = 2;
           else if (rawCorrect === 'D' || rawCorrect === '4') correctIndex = 3;
 
-          const options = [
-            { option_text: optA || 'Đáp án A', is_correct: correctIndex === 0 },
-            { option_text: optB || 'Đáp án B', is_correct: correctIndex === 1 },
-            { option_text: optC || 'Đáp án C', is_correct: correctIndex === 2 },
-            { option_text: optD || 'Đáp án D', is_correct: correctIndex === 3 },
-          ];
-
           const isPractice = testCases.length > 0;
+          const options = isPractice
+            ? []
+            : [
+                { option_text: optA || 'Đáp án A', is_correct: correctIndex === 0 },
+                { option_text: optB || 'Đáp án B', is_correct: correctIndex === 1 },
+                { option_text: optC || 'Đáp án C', is_correct: correctIndex === 2 },
+                { option_text: optD || 'Đáp án D', is_correct: correctIndex === 3 },
+              ];
+
           parsedQuestions.push({
             question_text: questionText,
             question_type: isPractice ? 'PRACTICE' : 'THEORY',

@@ -20,7 +20,19 @@ def get_db():
 def run_migrations():
     from sqlalchemy import inspect, text
     inspector = inspect(engine)
-    if "quiz_questions" in inspector.get_table_names():
+    table_names = inspector.get_table_names()
+
+    if "quizzes" in table_names:
+        quiz_cols = [c["name"] for c in inspector.get_columns("quizzes")]
+        with engine.connect() as conn:
+            if "is_assigned" not in quiz_cols:
+                try:
+                    conn.execute(text("ALTER TABLE quizzes ADD COLUMN is_assigned BOOLEAN DEFAULT 1"))
+                    conn.commit()
+                except Exception as e:
+                    print(f"Migration quizzes.is_assigned: {e}")
+
+    if "quiz_questions" in table_names:
         columns = [c["name"] for c in inspector.get_columns("quiz_questions")]
         with engine.connect() as conn:
             if "test_cases" not in columns:
@@ -35,5 +47,6 @@ def run_migrations():
                     conn.commit()
                 except Exception as e:
                     print(f"Migration question_type: {e}")
+
 
 

@@ -78,7 +78,7 @@ export interface QuizQuestion {
   explanation?: string;
   test_cases?: { input: string; expected: string; is_hidden?: boolean }[];
   order: number;
-  options: QuizOption[];
+  options?: QuizOption[];
 }
 
 export interface Quiz {
@@ -86,6 +86,7 @@ export interface Quiz {
   title: string;
   description?: string;
   time_limit_minutes: number;
+  is_assigned?: boolean;
   author_id: number;
   created_at: string;
   question_count: number;
@@ -101,10 +102,13 @@ export interface QuestionResult {
   question_type?: 'THEORY' | 'PRACTICE';
   code_snippet?: string;
   selected_option_id?: number;
-  correct_option_id: number;
+  correct_option_id?: number;
   is_correct: boolean;
   explanation?: string;
-  options: QuizOption[];
+  student_code?: string;
+  tests_passed?: number;
+  total_tests?: number;
+  options?: QuizOption[];
 }
 
 export interface QuizSubmitResult {

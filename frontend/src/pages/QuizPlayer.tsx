@@ -72,7 +72,11 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
     return () => clearInterval(interval);
   }, [quiz, result, timeRemaining]);
 
-  // Code Sandbox States
+  // Code Sandbox & Practice States
+  const [studentCodes, setStudentCodes] = useState<Record<number, string>>({});
+  const [practiceResults, setPracticeResults] = useState<
+    Record<number, { code: string; passed: boolean; passed_count: number; total_count: number }>
+  >({});
   const [sandboxCode, setSandboxCode] = useState<string>('');
   const [isSandboxOpen, setIsSandboxOpen] = useState(false);
   const [isRunningCode, setIsRunningCode] = useState(false);
@@ -88,16 +92,25 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
   useEffect(() => {
     if (quiz && quiz.questions[currentIndex]) {
       const q = quiz.questions[currentIndex];
-      const snip = q.code_snippet || '';
+      const snip = studentCodes[q.id] ?? q.code_snippet ?? '';
       setSandboxCode(snip);
       setSandboxOutput('');
       setSandboxError(null);
       setTestResults([]);
       const hasTests = Boolean(q.test_cases && q.test_cases.length > 0);
       setSandboxTab(hasTests ? 'tests' : 'terminal');
-      setIsSandboxOpen(Boolean(snip) || hasTests);
+      setIsSandboxOpen(Boolean(snip) || hasTests || q.question_type === 'PRACTICE');
     }
   }, [currentIndex, quiz]);
+
+  const handleEditorChange = (value: string | undefined) => {
+    const val = value ?? '';
+    setSandboxCode(val);
+    if (quiz && quiz.questions[currentIndex]) {
+      const qId = quiz.questions[currentIndex].id;
+      setStudentCodes((prev) => ({ ...prev, [qId]: val }));
+    }
+  };
 
   const handleRunTestCases = async () => {
     if (!quiz) return;
@@ -117,6 +130,29 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
 
       const evalRes = await evaluateTestCases(sandboxCode, formattedCases);
       setTestResults(evalRes.results);
+
+      const allPassed = evalRes.results.every((r) => r.passed);
+      const passedCount = evalRes.results.filter((r) => r.passed).length;
+      const totalCount = evalRes.results.length;
+
+      setStudentCodes((prev) => ({ ...prev, [q.id]: sandboxCode }));
+      setPracticeResults((prev) => ({
+        ...prev,
+        [q.id]: {
+          code: sandboxCode,
+          passed: allPassed,
+          passed_count: passedCount,
+          total_count: totalCount,
+        },
+      }));
+
+      if (allPassed) {
+        confetti({
+          particleCount: 60,
+          spread: 70,
+          origin: { y: 0.7 },
+        });
+      }
     } catch (err: any) {
       console.error(err);
     } finally {
@@ -149,7 +185,10 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
 
   const handleResetSandbox = () => {
     if (quiz && quiz.questions[currentIndex]) {
-      setSandboxCode(quiz.questions[currentIndex].code_snippet || '');
+      const q = quiz.questions[currentIndex];
+      const initialCode = q.code_snippet || '';
+      setSandboxCode(initialCode);
+      setStudentCodes((prev) => ({ ...prev, [q.id]: initialCode }));
       setSandboxOutput('');
       setSandboxError(null);
     }
@@ -171,12 +210,20 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
   const handleSubmit = async () => {
     if (!quiz || isSubmitting) return;
 
-    const answeredCount = Object.keys(selectedAnswers).length;
+    const uncompletedCount = quiz.questions.filter((q) => {
+      const isPractice =
+        q.question_type === 'PRACTICE' || Boolean(q.test_cases && q.test_cases.length > 0);
+      if (isPractice) {
+        return practiceResults[q.id] === undefined;
+      }
+      return selectedAnswers[q.id] === undefined;
+    }).length;
+
     if (
       timeRemaining > 0 &&
-      answeredCount < quiz.questions.length &&
+      uncompletedCount > 0 &&
       !confirm(
-        `Bạn mới trả lời ${answeredCount}/${quiz.questions.length} câu. Bạn có chắc chắn muốn nộp bài?`
+        `Bạn vẫn còn ${uncompletedCount}/${quiz.questions.length} câu chưa hoàn thành (chưa chọn đáp án hoặc chưa kiểm tra Test Cases). Bạn có chắc chắn muốn nộp bài?`
       )
     ) {
       return;
@@ -184,7 +231,12 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
 
     setIsSubmitting(true);
     try {
-      const data = await quizzesApi.submit(quiz.id, selectedAnswers, timeSpent);
+      const data = await quizzesApi.submit(
+        quiz.id,
+        selectedAnswers,
+        timeSpent,
+        practiceResults
+      );
       setResult(data);
 
       if (data.percentage >= 70) {
@@ -194,8 +246,8 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
           origin: { y: 0.6 },
         });
       }
-    } catch (err) {
-      alert('Có lỗi xảy ra khi nộp bài');
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Có lỗi xảy ra khi nộp bài');
       console.error(err);
     } finally {
       setIsSubmitting(false);
@@ -407,48 +459,75 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
                   </pre>
                 )}
 
-                {/* Options Review */}
-                <div className="grid grid-cols-1 gap-2 pt-2">
-                  {qRes.options.map((opt) => {
-                    const isSelected = qRes.selected_option_id === opt.id;
-                    const isCorrect = qRes.correct_option_id === opt.id;
-
-                    let optStyle =
-                      'bg-slate-950/60 border-slate-800 text-slate-300';
-                    if (isCorrect) {
-                      optStyle =
-                        'bg-emerald-500/10 border-emerald-500/50 text-emerald-300 font-semibold';
-                    } else if (isSelected && !isCorrect) {
-                      optStyle =
-                        'bg-rose-500/10 border-rose-500/50 text-rose-300';
-                    }
-
-                    return (
-                      <div
-                        key={opt.id}
-                        className={`p-3 rounded-xl border text-xs flex items-center justify-between ${optStyle}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-slate-800 text-[11px] flex items-center justify-center font-bold">
-                            {String.fromCharCode(64 + opt.order)}
-                          </span>
-                          <span>{opt.option_text}</span>
-                        </div>
-
-                        {isCorrect && (
-                          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
-                            Đáp án đúng
-                          </span>
-                        )}
-                        {isSelected && !isCorrect && (
-                          <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">
-                            Lựa chọn của bạn
-                          </span>
-                        )}
+                {/* Options Review for Theory vs Code & Tests Review for Practice */}
+                {qRes.question_type === 'PRACTICE' ? (
+                  <div className="space-y-2 pt-1">
+                    {qRes.student_code && (
+                      <div>
+                        <span className="text-[11px] font-semibold text-slate-400 block mb-1">
+                          Mã nguồn bài làm của bạn:
+                        </span>
+                        <pre className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-emerald-400 font-mono text-xs overflow-x-auto">
+                          {qRes.student_code}
+                        </pre>
                       </div>
-                    );
-                  })}
-                </div>
+                    )}
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-slate-400">Kết quả Test Cases:</span>
+                      {qRes.is_correct ? (
+                        <span className="text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-lg">
+                          Đã vượt qua tất cả ({qRes.tests_passed ?? qRes.total_tests ?? 0}/{qRes.total_tests ?? 0} Test Cases)
+                        </span>
+                      ) : (
+                        <span className="text-rose-400 font-bold bg-rose-500/10 border border-rose-500/30 px-2 py-0.5 rounded-lg">
+                          Chưa đạt ({qRes.tests_passed ?? 0}/{qRes.total_tests ?? 0} Test Cases)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2 pt-2">
+                    {(qRes.options || []).map((opt) => {
+                      const isSelected = qRes.selected_option_id === opt.id;
+                      const isCorrect = qRes.correct_option_id === opt.id;
+
+                      let optStyle =
+                        'bg-slate-950/60 border-slate-800 text-slate-300';
+                      if (isCorrect) {
+                        optStyle =
+                          'bg-emerald-500/10 border-emerald-500/50 text-emerald-300 font-semibold';
+                      } else if (isSelected && !isCorrect) {
+                        optStyle =
+                          'bg-rose-500/10 border-rose-500/50 text-rose-300';
+                      }
+
+                      return (
+                        <div
+                          key={opt.id}
+                          className={`p-3 rounded-xl border text-xs flex items-center justify-between ${optStyle}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-slate-800 text-[11px] flex items-center justify-center font-bold">
+                              {String.fromCharCode(64 + opt.order)}
+                            </span>
+                            <span>{opt.option_text}</span>
+                          </div>
+
+                          {isCorrect && (
+                            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                              Đáp án đúng
+                            </span>
+                          )}
+                          {isSelected && !isCorrect && (
+                            <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">
+                              Lựa chọn của bạn
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Explanation */}
                 {qRes.explanation && (
@@ -473,11 +552,13 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2">
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
               {quiz.questions.map((q, idx) => {
-                const isAnswered = selectedAnswers[q.id] !== undefined;
-                const isCurrent = idx === currentIndex;
                 const isPractice =
                   q.question_type === 'PRACTICE' ||
                   Boolean(q.test_cases && q.test_cases.length > 0);
+                const isAnswered = isPractice
+                  ? practiceResults[q.id] !== undefined
+                  : selectedAnswers[q.id] !== undefined;
+                const isCurrent = idx === currentIndex;
 
                 let btnStyle =
                   'bg-slate-950 border-slate-800 text-slate-400 hover:text-white';
@@ -550,7 +631,18 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
               </div>
 
               <span className="text-slate-400">
-                Đã trả lời: {Object.keys(selectedAnswers).length} / {totalQuestions}
+                Đã hoàn thành:{' '}
+                {
+                  quiz.questions.filter((q) => {
+                    const isPrac =
+                      q.question_type === 'PRACTICE' ||
+                      Boolean(q.test_cases && q.test_cases.length > 0);
+                    return isPrac
+                      ? practiceResults[q.id] !== undefined
+                      : selectedAnswers[q.id] !== undefined;
+                  }).length
+                }{' '}
+                / {totalQuestions}
               </span>
             </div>
 
@@ -642,7 +734,7 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
                     defaultLanguage="python"
                     theme="vs-dark"
                     value={sandboxCode}
-                    onChange={(val) => setSandboxCode(val || '')}
+                    onChange={handleEditorChange}
                     options={{
                       fontSize: 13,
                       fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
@@ -791,48 +883,86 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
               </div>
             )}
 
-            {/* Options */}
-            <div className="space-y-3 pt-2">
-              {currentQ.options.map((opt) => {
-                const isSelected = selectedAnswers[currentQ.id] === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => handleSelectOption(currentQ.id, opt.id)}
-                    className={`w-full text-left p-4 rounded-2xl border text-sm font-medium transition flex items-center justify-between group ${
-                      isSelected
-                        ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg shadow-purple-500/10'
-                        : 'bg-slate-950/60 hover:bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold transition ${
-                          isSelected
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-slate-800 text-slate-400 group-hover:text-white'
-                        }`}
-                      >
-                        {String.fromCharCode(64 + opt.order)}
-                      </span>
-                      <span>{opt.option_text}</span>
-                    </div>
-
-                    <div
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+            {/* Options for Theory vs Practical Completion Status */}
+            {isCurrentPractice ? (
+              <div className="p-4 rounded-2xl border bg-slate-950/70 border-slate-800 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+                    <Terminal className="w-4 h-4 text-cyan-400" />
+                    <span>Trạng thái bài thực hành:</span>
+                  </span>
+                  {(() => {
+                    const status = practiceResults[currentQ.id];
+                    if (status?.passed) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs font-bold px-3 py-1 rounded-xl">
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Đã vượt qua tất cả ({status.passed_count}/{status.total_count} Test Cases)</span>
+                        </span>
+                      );
+                    } else if (status) {
+                      return (
+                        <span className="inline-flex items-center gap-1.5 bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold px-3 py-1 rounded-xl">
+                          <span>Chưa đạt ({status.passed_count}/{status.total_count} Test Cases)</span>
+                        </span>
+                      );
+                    } else {
+                      return (
+                        <span className="text-xs text-slate-400">
+                          Chưa kiểm thử (Nhấn nút "Kiểm tra Test Cases" ở trên)
+                        </span>
+                      );
+                    }
+                  })()}
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  💡 Điểm của câu hỏi thực hành được tính trực tiếp từ việc vượt qua các Test Cases. Bạn không cần chọn đáp án A/B/C/D!
+                </p>
+              </div>
+            ) : (
+              /* Theory Questions - 4 ABCD Options */
+              <div className="space-y-3 pt-2">
+                {(currentQ.options || []).map((opt) => {
+                  const isSelected = selectedAnswers[currentQ.id] === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => handleSelectOption(currentQ.id, opt.id)}
+                      className={`w-full text-left p-4 rounded-2xl border text-sm font-medium transition flex items-center justify-between group ${
                         isSelected
-                          ? 'border-purple-500 bg-purple-600'
-                          : 'border-slate-700'
+                          ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg shadow-purple-500/10'
+                          : 'bg-slate-950/60 hover:bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                       }`}
                     >
-                      {isSelected && (
-                        <div className="w-2 h-2 rounded-full bg-white" />
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold transition ${
+                            isSelected
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-slate-800 text-slate-400 group-hover:text-white'
+                          }`}
+                        >
+                          {String.fromCharCode(64 + opt.order)}
+                        </span>
+                        <span>{opt.option_text}</span>
+                      </div>
+
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+                          isSelected
+                            ? 'border-purple-500 bg-purple-600'
+                            : 'border-slate-700'
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Navigation Controls */}

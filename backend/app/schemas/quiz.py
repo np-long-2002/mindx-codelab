@@ -36,12 +36,12 @@ class QuizQuestionBase(BaseModel):
     order: int = 0
 
 class QuizQuestionCreate(QuizQuestionBase):
-    options: List[QuizOptionCreate]
+    options: Optional[List[QuizOptionCreate]] = []
 
 class QuizQuestionOut(QuizQuestionBase):
     id: int
     quiz_id: int
-    options: List[QuizOptionOut]
+    options: List[QuizOptionOut] = []
 
     class Config:
         from_attributes = True
@@ -53,7 +53,7 @@ class QuizQuestionStudentOut(BaseModel):
     code_snippet: Optional[str] = None
     test_cases: Optional[List[Dict[str, Any]]] = []
     order: int
-    options: List[QuizOptionStudentOut]
+    options: List[QuizOptionStudentOut] = []
 
     class Config:
         from_attributes = True
@@ -63,6 +63,7 @@ class QuizBase(BaseModel):
     title: str
     description: Optional[str] = None
     time_limit_minutes: int = 15
+    is_assigned: bool = True
 
 class QuizCreate(QuizBase):
     questions: List[QuizQuestionCreate]
@@ -84,7 +85,8 @@ class QuizDetailTeacherOut(QuizOut):
 
 # Submit & Attempts
 class QuizSubmitIn(BaseModel):
-    answers: Dict[int, int]  # {question_id: option_id}
+    answers: Dict[str, Any] = {}  # {question_id: option_id} for theory
+    practice_answers: Optional[Dict[str, Any]] = {}  # {question_id: {code, passed, passed_count, total_count}}
     time_spent_seconds: int = 0
 
 class QuestionResultOut(BaseModel):
@@ -93,10 +95,13 @@ class QuestionResultOut(BaseModel):
     question_type: Optional[str] = "THEORY"
     code_snippet: Optional[str] = None
     selected_option_id: Optional[int] = None
-    correct_option_id: int
+    correct_option_id: Optional[int] = None
     is_correct: bool
     explanation: Optional[str] = None
-    options: List[QuizOptionOut]
+    student_code: Optional[str] = None
+    tests_passed: Optional[int] = None
+    total_tests: Optional[int] = None
+    options: List[QuizOptionOut] = []
 
 class QuizSubmitResult(BaseModel):
     attempt_id: int

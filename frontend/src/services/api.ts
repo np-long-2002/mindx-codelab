@@ -103,13 +103,23 @@ export const quizzesApi = {
     const res = await api.post<QuizDetail>('/quizzes', data);
     return res.data;
   },
+  toggleAssign: async (id: number) => {
+    const res = await api.patch<Quiz>(`/quizzes/${id}/toggle-assign`);
+    return res.data;
+  },
   delete: async (id: number) => {
     const res = await api.delete(`/quizzes/${id}`);
     return res.data;
   },
-  submit: async (quizId: number, answers: Record<number, number>, timeSpentSeconds: number) => {
+  submit: async (
+    quizId: number,
+    answers: Record<string | number, any>,
+    timeSpentSeconds: number,
+    practiceAnswers?: Record<string | number, any>
+  ) => {
     const res = await api.post<QuizSubmitResult>(`/quizzes/${quizId}/submit`, {
       answers,
+      practice_answers: practiceAnswers || {},
       time_spent_seconds: timeSpentSeconds,
     });
     return res.data;

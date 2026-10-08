@@ -38,3 +38,17 @@ def require_teacher(current_user: User = Depends(get_current_user)) -> User:
         )
     return current_user
 
+def get_current_user_optional(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    if not token:
+        return None
+    payload = decode_access_token(token)
+    if payload is None:
+        return None
+    user_id = payload.get("sub")
+    if user_id is None:
+        return None
+    return db.query(User).filter(User.id == int(user_id)).first()
+

@@ -10,6 +10,7 @@ class Quiz(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     time_limit_minutes = Column(Integer, default=15)
+    is_assigned = Column(Boolean, default=True)  # Teacher assigns/activates this quiz for students
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

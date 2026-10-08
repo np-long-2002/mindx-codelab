@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
 import { quizzesApi } from '../services/api';
-import { ArrowLeft, Plus, Trash2, Save, HelpCircle, CheckCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Save,
+  HelpCircle,
+  CheckCircle,
+  FileSpreadsheet,
+  Download,
+  Upload,
+} from 'lucide-react';
+import { downloadQuizTemplate, parseQuizExcel } from '../utils/excelQuizHelper';
 
 interface QuizEditorProps {
   onBack: () => void;
@@ -73,6 +84,37 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
       opt.is_correct = idx === optIndex;
     });
     setQuestions(updated);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const parsed = await parseQuizExcel(file);
+      if (parsed.length === 0) return;
+
+      const isDefaultInitial =
+        questions.length === 1 && !questions[0].question_text.trim();
+
+      const replace =
+        isDefaultInitial ||
+        confirm(
+          `Đã đọc thành công ${parsed.length} câu hỏi từ file Excel!\n\n- Bấm "OK" để THAY THẾ danh sách câu hỏi hiện tại.\n- Bấm "Cancel" để THÊM VÀO CUỐI danh sách.`
+        );
+
+      if (replace) {
+        setQuestions(parsed);
+      } else {
+        setQuestions([...questions, ...parsed]);
+      }
+
+      alert(`Đã nạp thành công ${parsed.length} câu hỏi từ file Excel!`);
+    } catch (err: any) {
+      alert(err.message || 'Lỗi khi đọc file Excel');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -186,6 +228,48 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
               placeholder="Mô tả phạm vi kiến thức, mục tiêu của bài trắc nghiệm..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500"
             />
+          </div>
+        </div>
+
+        {/* Excel Import Bar */}
+        <div className="bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-500/30 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-purple-500/20 text-purple-300 rounded-xl border border-purple-500/30 flex-shrink-0">
+              <FileSpreadsheet className="w-6 h-6 text-purple-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                <span>Nhập câu hỏi từ file Excel</span>
+                <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-mono">
+                  Chuẩn Quizizz
+                </span>
+              </h3>
+              <p className="text-xs text-slate-400">
+                Tải file mẫu Excel, điền câu hỏi và đáp án, sau đó tải lên để tạo đề thi nhanh chóng.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 w-full sm:w-auto flex-shrink-0">
+            <button
+              type="button"
+              onClick={downloadQuizTemplate}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold transition"
+            >
+              <Download className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Tải file mẫu (.xlsx)</span>
+            </button>
+
+            <label className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg shadow-purple-600/30 cursor-pointer transition">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Chọn file Excel</span>
+              <input
+                type="file"
+                accept=".xlsx, .xls, .csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
           </div>
         </div>
 
@@ -333,3 +417,4 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
     </div>
   );
 };
+

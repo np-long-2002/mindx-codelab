@@ -114,3 +114,4 @@ class QuizAttemptOut(BaseModel):
 
     class Config:
         from_attributes = True
+

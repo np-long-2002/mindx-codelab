@@ -152,3 +152,4 @@ export const QuizList: React.FC<QuizListProps> = ({
     </div>
   );
 };
+

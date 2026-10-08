@@ -58,3 +58,4 @@ class QuizAttempt(Base):
 
     quiz = relationship("Quiz", back_populates="attempts")
     user = relationship("User")
+

@@ -181,3 +181,4 @@ def get_quiz_attempts(
         item.percentage = round((att.score / att.total_questions * 100), 1) if att.total_questions > 0 else 0.0
         results.append(item)
     return results
+

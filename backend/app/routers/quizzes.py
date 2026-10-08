@@ -305,7 +305,7 @@ def get_quiz_attempt_detail(
     item = QuizAttemptOut.model_validate(attempt)
     item.user_name = attempt.user.full_name if attempt.user else "Ẩn danh"
     item.user_email = attempt.user.email if attempt.user else ""
-    item.percentage = round((att := attempt, att.score / att.total_questions * 100), 1) if attempt.total_questions > 0 else 0.0
+    item.percentage = round((attempt.score / attempt.total_questions * 100), 1) if attempt.total_questions > 0 else 0.0
 
     raw_data = attempt.user_answers or {}
     if isinstance(raw_data, dict) and "results" in raw_data and raw_data["results"]:

@@ -244,3 +244,4 @@ export const QuizPreviewModal: React.FC<QuizPreviewModalProps> = ({
     </div>
   );
 };
+

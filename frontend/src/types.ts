@@ -62,3 +62,67 @@ export interface TestResult {
   executionTimeMs: number;
 }
 
+// Quiz Types
+export interface QuizOption {
+  id: number;
+  option_text: string;
+  is_correct?: boolean;
+  order: number;
+}
+
+export interface QuizQuestion {
+  id: number;
+  question_text: string;
+  code_snippet?: string;
+  explanation?: string;
+  order: number;
+  options: QuizOption[];
+}
+
+export interface Quiz {
+  id: number;
+  title: string;
+  description?: string;
+  time_limit_minutes: number;
+  author_id: number;
+  created_at: string;
+  question_count: number;
+}
+
+export interface QuizDetail extends Quiz {
+  questions: QuizQuestion[];
+}
+
+export interface QuestionResult {
+  question_id: number;
+  question_text: string;
+  code_snippet?: string;
+  selected_option_id?: number;
+  correct_option_id: number;
+  is_correct: boolean;
+  explanation?: string;
+  options: QuizOption[];
+}
+
+export interface QuizSubmitResult {
+  attempt_id: number;
+  score: number;
+  total_questions: number;
+  percentage: number;
+  time_spent_seconds: number;
+  results: QuestionResult[];
+}
+
+export interface QuizAttempt {
+  id: number;
+  quiz_id: number;
+  user_id: number;
+  user_name?: string;
+  score: number;
+  total_questions: number;
+  percentage: number;
+  time_spent_seconds: number;
+  created_at: string;
+}
+
+

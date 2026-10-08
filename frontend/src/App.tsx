@@ -7,6 +7,9 @@ import { ProblemDetail } from './pages/ProblemDetail';
 import { ProblemEditor } from './pages/ProblemEditor';
 import { TeacherDashboard } from './pages/TeacherDashboard';
 import { SubmissionsPage } from './pages/SubmissionsPage';
+import { QuizList } from './pages/QuizList';
+import { QuizPlayer } from './pages/QuizPlayer';
+import { QuizEditor } from './pages/QuizEditor';
 import { usePyodide } from './hooks/usePyodide';
 import { Code2, Heart } from 'lucide-react';
 
@@ -17,6 +20,7 @@ const MainApp: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('problems');
   const [selectedProblemId, setSelectedProblemId] = useState<number | null>(null);
   const [editProblemId, setEditProblemId] = useState<number | null>(null);
+  const [selectedQuizId, setSelectedQuizId] = useState<number | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const handleSelectProblem = (id: number) => {
@@ -71,6 +75,31 @@ const MainApp: React.FC = () => {
           />
         )}
 
+        {currentTab === 'quizzes' && (
+          <QuizList
+            onStartQuiz={(id) => {
+              setSelectedQuizId(id);
+              setCurrentTab('quiz-player');
+            }}
+            onCreateQuiz={() => setCurrentTab('create-quiz')}
+            openAuthModal={() => setIsAuthModalOpen(true)}
+          />
+        )}
+
+        {currentTab === 'quiz-player' && selectedQuizId && (
+          <QuizPlayer
+            quizId={selectedQuizId}
+            onBack={() => setCurrentTab('quizzes')}
+          />
+        )}
+
+        {currentTab === 'create-quiz' && isTeacher && (
+          <QuizEditor
+            onBack={() => setCurrentTab('quizzes')}
+            onSaved={() => setCurrentTab('quizzes')}
+          />
+        )}
+
         {currentTab === 'teacher-dashboard' && isTeacher && (
           <TeacherDashboard />
         )}
@@ -85,8 +114,8 @@ const MainApp: React.FC = () => {
         )}
       </main>
 
-      {/* Footer (only show when not in IDE mode) */}
-      {currentTab !== 'detail' && (
+      {/* Footer (only show when not in IDE or Quiz taking mode) */}
+      {currentTab !== 'detail' && currentTab !== 'quiz-player' && (
         <footer className="bg-slate-900/60 border-t border-slate-800/80 py-6 text-center text-xs text-slate-500">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2">

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Terminal, PlusCircle, BookOpen, LogOut, LogIn, History, Shield, User as UserIcon } from 'lucide-react';
+import { Terminal, PlusCircle, BookOpen, LogOut, LogIn, History, Shield, User as UserIcon, HelpCircle } from 'lucide-react';
 
 interface NavbarProps {
   currentTab: string;
@@ -53,6 +53,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <BookOpen className="w-4 h-4" />
               <span>Kho bài tập</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentTab('quizzes')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                currentTab === 'quizzes' || currentTab === 'quiz-player' || currentTab === 'create-quiz'
+                  ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <HelpCircle className="w-4 h-4 text-purple-400" />
+              <span>Trắc nghiệm</span>
             </button>
 
             {isTeacher && (

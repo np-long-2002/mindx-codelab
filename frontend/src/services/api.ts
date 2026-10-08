@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { User, Problem, ProblemDetail, Submission } from '../types';
+import type { User, Problem, ProblemDetail, Submission, Quiz, QuizDetail, QuizSubmitResult, QuizAttempt } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -86,6 +86,36 @@ export const submissionsApi = {
   },
   get: async (id: number) => {
     const res = await api.get<Submission>(`/submissions/${id}`);
+    return res.data;
+  },
+};
+
+export const quizzesApi = {
+  list: async () => {
+    const res = await api.get<Quiz[]>('/quizzes');
+    return res.data;
+  },
+  get: async (id: number) => {
+    const res = await api.get<QuizDetail>(`/quizzes/${id}`);
+    return res.data;
+  },
+  create: async (data: any) => {
+    const res = await api.post<QuizDetail>('/quizzes', data);
+    return res.data;
+  },
+  delete: async (id: number) => {
+    const res = await api.delete(`/quizzes/${id}`);
+    return res.data;
+  },
+  submit: async (quizId: number, answers: Record<number, number>, timeSpentSeconds: number) => {
+    const res = await api.post<QuizSubmitResult>(`/quizzes/${quizId}/submit`, {
+      answers,
+      time_spent_seconds: timeSpentSeconds,
+    });
+    return res.data;
+  },
+  getAttempts: async (quizId: number) => {
+    const res = await api.get<QuizAttempt[]>(`/quizzes/${quizId}/attempts`);
     return res.data;
   },
 };

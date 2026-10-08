@@ -20,7 +20,9 @@ import {
   Code2,
   Check,
   BookOpen,
+  Eye,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 interface QuizPlayerProps {
   quizId: number;
@@ -28,6 +30,8 @@ interface QuizPlayerProps {
 }
 
 export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
+  const { isTeacher } = useAuth();
+  const [showTeacherAnswers, setShowTeacherAnswers] = useState(true);
   const { runCode, evaluateTestCases, isReady: isPyodideReady } = usePyodide();
   const [quiz, setQuiz] = useState<QuizDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -488,8 +492,16 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
                 ) : (
                   <div className="grid grid-cols-1 gap-2 pt-2">
                     {(qRes.options || []).map((opt) => {
-                      const isSelected = qRes.selected_option_id === opt.id;
-                      const isCorrect = qRes.correct_option_id === opt.id;
+                      const isSelected =
+                        qRes.selected_option_id !== null &&
+                        qRes.selected_option_id !== undefined &&
+                        String(qRes.selected_option_id) === String(opt.id);
+
+                      const isCorrect =
+                        Boolean(opt.is_correct) ||
+                        (qRes.correct_option_id !== null &&
+                          qRes.correct_option_id !== undefined &&
+                          String(qRes.correct_option_id) === String(opt.id));
 
                       let optStyle =
                         'bg-slate-950/60 border-slate-800 text-slate-300';
@@ -548,6 +560,29 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
       ) : (
         /* Quiz Active Taking Interface */
         <div className="space-y-6">
+          {/* Teacher Preview Toolbar */}
+          {isTeacher && (
+            <div className="bg-gradient-to-r from-purple-950/50 via-slate-900 to-indigo-950/50 border border-purple-500/30 rounded-2xl p-3.5 px-4 flex flex-wrap items-center justify-between gap-3 text-xs shadow-md">
+              <div className="flex items-center gap-2 text-purple-200">
+                <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                <span className="font-bold text-white">Chế độ Xem trước của Giáo viên:</span>
+                <span className="text-slate-300">Đang bật hiển thị đáp án đúng & giải thích để bạn tiện kiểm tra đề.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTeacherAnswers(!showTeacherAnswers)}
+                className={`px-3 py-1.5 rounded-xl font-semibold border transition flex items-center gap-1.5 ${
+                  showTeacherAnswers
+                    ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-600/30'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                }`}
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>{showTeacherAnswers ? 'Đang hiện đáp án đúng' : 'Bật hiện đáp án đúng'}</span>
+              </button>
+            </div>
+          )}
+
           {/* Question Nav Bar (1, 2, 3...) & Legend */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 space-y-2">
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -924,12 +959,15 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
               <div className="space-y-3 pt-2">
                 {(currentQ.options || []).map((opt) => {
                   const isSelected = selectedAnswers[currentQ.id] === opt.id;
+                  const isTeacherCorrect = isTeacher && showTeacherAnswers && Boolean(opt.is_correct);
                   return (
                     <button
                       key={opt.id}
                       onClick={() => handleSelectOption(currentQ.id, opt.id)}
                       className={`w-full text-left p-4 rounded-2xl border text-sm font-medium transition flex items-center justify-between group ${
-                        isSelected
+                        isTeacherCorrect
+                          ? 'bg-emerald-950/40 border-emerald-500/80 text-emerald-100 shadow-md shadow-emerald-500/10'
+                          : isSelected
                           ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg shadow-purple-500/10'
                           : 'bg-slate-950/60 hover:bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
                       }`}
@@ -937,7 +975,9 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
                       <div className="flex items-center gap-3">
                         <span
                           className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-bold transition ${
-                            isSelected
+                            isTeacherCorrect
+                              ? 'bg-emerald-500 text-white'
+                              : isSelected
                               ? 'bg-purple-600 text-white'
                               : 'bg-slate-800 text-slate-400 group-hover:text-white'
                           }`}
@@ -947,20 +987,39 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
                         <span>{opt.option_text}</span>
                       </div>
 
-                      <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
-                          isSelected
-                            ? 'border-purple-500 bg-purple-600'
-                            : 'border-slate-700'
-                        }`}
-                      >
-                        {isSelected && (
-                          <div className="w-2 h-2 rounded-full bg-white" />
+                      <div className="flex items-center gap-2">
+                        {isTeacherCorrect && (
+                          <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Đáp án đúng</span>
+                          </span>
                         )}
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+                            isSelected || isTeacherCorrect
+                              ? 'border-purple-500 bg-purple-600'
+                              : 'border-slate-700'
+                          }`}
+                        >
+                          {(isSelected || isTeacherCorrect) && (
+                            <div className="w-2 h-2 rounded-full bg-white" />
+                          )}
+                        </div>
                       </div>
                     </button>
                   );
                 })}
+
+                {/* Explanation for Teacher */}
+                {isTeacher && showTeacherAnswers && currentQ.explanation && (
+                  <div className="mt-3 p-3.5 bg-purple-950/40 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-white block mb-0.5">Giải thích / Lời giải (Giáo viên):</span>
+                      <span className="text-purple-200/90 leading-relaxed">{currentQ.explanation}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

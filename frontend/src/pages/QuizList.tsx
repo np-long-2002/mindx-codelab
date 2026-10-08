@@ -3,6 +3,7 @@ import type { Quiz } from '../types';
 import { quizzesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { QuizSubmissionsModal } from '../components/QuizSubmissionsModal';
+import { QuizPreviewModal } from '../components/QuizPreviewModal';
 import {
   HelpCircle,
   Clock,
@@ -16,6 +17,8 @@ import {
   Layers,
   Lock,
   Users,
+  BookOpen,
+  Eye,
 } from 'lucide-react';
 
 interface QuizListProps {
@@ -34,6 +37,7 @@ export const QuizList: React.FC<QuizListProps> = ({
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'ALL' | 'ASSIGNED' | 'DRAFT'>('ALL');
   const [inspectingQuiz, setInspectingQuiz] = useState<Quiz | null>(null);
+  const [previewingQuiz, setPreviewingQuiz] = useState<Quiz | null>(null);
 
   const fetchQuizzes = async () => {
     setLoading(true);
@@ -237,7 +241,21 @@ export const QuizList: React.FC<QuizListProps> = ({
                   </p>
 
                   {isTeacher && (
-                    <div className="mb-4">
+                    <div className="space-y-2 mb-4">
+                      <button
+                        onClick={() => setPreviewingQuiz(quiz)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 hover:bg-indigo-950/30 border border-slate-800 hover:border-indigo-500/40 text-xs transition group/btn"
+                      >
+                        <span className="flex items-center gap-2 text-slate-300 group-hover/btn:text-indigo-200">
+                          <BookOpen className="w-4 h-4 text-indigo-400" />
+                          <span>Xem đề & Đáp án chi tiết</span>
+                        </span>
+                        <span className="text-[11px] font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <span>Xem đáp án</span>
+                          <Eye className="w-3 h-3" />
+                        </span>
+                      </button>
+
                       <button
                         onClick={() => setInspectingQuiz(quiz)}
                         className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 hover:bg-purple-950/30 border border-slate-800 hover:border-purple-500/40 text-xs transition group/btn"
@@ -311,6 +329,14 @@ export const QuizList: React.FC<QuizListProps> = ({
             );
           })}
         </div>
+      )}
+
+      {/* Teacher Preview Quiz & Answers Modal */}
+      {previewingQuiz && (
+        <QuizPreviewModal
+          quiz={previewingQuiz}
+          onClose={() => setPreviewingQuiz(null)}
+        />
       )}
 
       {/* Teacher Inspect Submissions Modal */}

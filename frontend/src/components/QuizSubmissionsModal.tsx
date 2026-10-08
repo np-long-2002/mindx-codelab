@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { Quiz, QuizAttempt } from '../types';
+import type { Quiz, QuizAttempt, QuizDetail } from '../types';
 import { quizzesApi } from '../services/api';
 import {
   X,
@@ -27,6 +27,7 @@ export const QuizSubmissionsModal: React.FC<QuizSubmissionsModalProps> = ({
   onClose,
 }) => {
   const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
+  const [quizDetail, setQuizDetail] = useState<QuizDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAttempt, setSelectedAttempt] = useState<QuizAttempt | null>(null);
@@ -36,8 +37,12 @@ export const QuizSubmissionsModal: React.FC<QuizSubmissionsModalProps> = ({
     const fetchAttempts = async () => {
       setLoading(true);
       try {
-        const data = await quizzesApi.getAttempts(quiz.id);
+        const [data, qd] = await Promise.all([
+          quizzesApi.getAttempts(quiz.id),
+          quizzesApi.get(quiz.id).catch(() => null),
+        ]);
         setAttempts(data);
+        if (qd) setQuizDetail(qd);
       } catch (err) {
         console.error('Failed to load attempts', err);
       } finally {
@@ -297,64 +302,85 @@ export const QuizSubmissionsModal: React.FC<QuizSubmissionsModalProps> = ({
                           </div>
                         ) : (
                           /* Theory: ABCD Options Breakdown */
-                          <div className="space-y-2 pt-1">
-                            <span className="text-xs font-semibold text-slate-400 block mb-1">
-                              Các đáp án (Màu xanh: đáp án đúng, Màu đỏ: học viên chọn sai):
-                            </span>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                              {(qRes.options || []).map((opt) => {
-                                const isSelected = qRes.selected_option_id === opt.id;
-                                const isCorrect = qRes.correct_option_id === opt.id;
+                          (() => {
+                            const questionOptions =
+                              qRes.options && qRes.options.length > 0
+                                ? qRes.options
+                                : quizDetail?.questions.find((q) => q.id === qRes.question_id)?.options || [];
 
-                                let optStyle = 'bg-slate-900 border-slate-800 text-slate-300';
-                                if (isCorrect) {
-                                  optStyle = 'bg-emerald-950/40 border-emerald-500/60 text-emerald-200 font-semibold';
-                                } else if (isSelected && !isCorrect) {
-                                  optStyle = 'bg-rose-950/40 border-rose-500/60 text-rose-200 font-semibold';
-                                }
+                            const effectiveExplanation =
+                              qRes.explanation ||
+                              quizDetail?.questions.find((q) => q.id === qRes.question_id)?.explanation;
 
-                                return (
-                                  <div
-                                    key={opt.id}
-                                    className={`p-3 rounded-xl border text-xs flex items-center justify-between ${optStyle}`}
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <span className="w-5 h-5 rounded-full bg-slate-800 text-[11px] flex items-center justify-center font-bold">
-                                        {String.fromCharCode(64 + opt.order)}
-                                      </span>
-                                      <span>{opt.option_text}</span>
-                                    </div>
+                            return (
+                              <div className="space-y-3 pt-1">
+                                <span className="text-xs font-semibold text-slate-400 block">
+                                  Các đáp án (Màu xanh: đáp án đúng, Màu đỏ: học viên chọn sai):
+                                </span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                  {questionOptions.map((opt) => {
+                                    const isSelected =
+                                      qRes.selected_option_id !== null &&
+                                      qRes.selected_option_id !== undefined &&
+                                      String(qRes.selected_option_id) === String(opt.id);
 
-                                    <div>
-                                      {isSelected && isCorrect && (
-                                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                                          Học viên chọn ✓
-                                        </span>
-                                      )}
-                                      {isSelected && !isCorrect && (
-                                        <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-bold">
-                                          Học viên chọn ✗
-                                        </span>
-                                      )}
-                                      {!isSelected && isCorrect && (
-                                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
-                                          Đáp án đúng
-                                        </span>
-                                      )}
-                                    </div>
+                                    const isCorrect =
+                                      Boolean(opt.is_correct) ||
+                                      (qRes.correct_option_id !== null &&
+                                        qRes.correct_option_id !== undefined &&
+                                        String(qRes.correct_option_id) === String(opt.id));
+
+                                    let optStyle = 'bg-slate-900 border-slate-800 text-slate-300';
+                                    if (isCorrect) {
+                                      optStyle = 'bg-emerald-950/40 border-emerald-500/60 text-emerald-200 font-semibold';
+                                    } else if (isSelected && !isCorrect) {
+                                      optStyle = 'bg-rose-950/40 border-rose-500/60 text-rose-200 font-semibold';
+                                    }
+
+                                    return (
+                                      <div
+                                        key={opt.id}
+                                        className={`p-3 rounded-xl border text-xs flex items-center justify-between ${optStyle}`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="w-5 h-5 rounded-full bg-slate-800 text-[11px] flex items-center justify-center font-bold">
+                                            {String.fromCharCode(64 + opt.order)}
+                                          </span>
+                                          <span>{opt.option_text}</span>
+                                        </div>
+
+                                        <div>
+                                          {isSelected && isCorrect && (
+                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                                              Học viên chọn ✓
+                                            </span>
+                                          )}
+                                          {isSelected && !isCorrect && (
+                                            <span className="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded-full font-bold">
+                                              Học viên chọn ✗
+                                            </span>
+                                          )}
+                                          {!isSelected && isCorrect && (
+                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                                              Đáp án đúng
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                                {/* Explanation */}
+                                {effectiveExplanation && (
+                                  <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800/80 text-xs text-purple-300">
+                                    <span className="font-semibold text-purple-200">💡 Giải thích / Hướng dẫn: </span>
+                                    {effectiveExplanation}
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Explanation */}
-                        {qRes.explanation && (
-                          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800/80 text-xs text-purple-300">
-                            <span className="font-semibold text-purple-200">💡 Giải thích / Hướng dẫn: </span>
-                            {qRes.explanation}
-                          </div>
+                                )}
+                              </div>
+                            );
+                          })()
                         )}
                       </div>
                     );
@@ -511,3 +537,4 @@ export const QuizSubmissionsModal: React.FC<QuizSubmissionsModalProps> = ({
     </div>
   );
 };
+

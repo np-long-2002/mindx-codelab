@@ -36,7 +36,9 @@ env/
 
 # Environment variables
 .env
-.env.*
+.env.local
+.env.*.local
+!.env.production
 !.env.example
 
 # IDE & OS
@@ -44,3 +46,4 @@ env/
 .idea/
 .DS_Store
 Thumbs.db
+

@@ -31,6 +31,7 @@ class QuizQuestionBase(BaseModel):
     question_text: str
     code_snippet: Optional[str] = None
     explanation: Optional[str] = None
+    test_cases: Optional[List[Dict[str, Any]]] = []
     order: int = 0
 
 class QuizQuestionCreate(QuizQuestionBase):
@@ -48,6 +49,7 @@ class QuizQuestionStudentOut(BaseModel):
     id: int
     question_text: str
     code_snippet: Optional[str] = None
+    test_cases: Optional[List[Dict[str, Any]]] = []
     order: int
     options: List[QuizOptionStudentOut]
 

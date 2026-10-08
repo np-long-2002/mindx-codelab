@@ -26,6 +26,7 @@ class QuizQuestion(Base):
     question_text = Column(Text, nullable=False)
     code_snippet = Column(Text, nullable=True)
     explanation = Column(Text, nullable=True)
+    test_cases = Column(JSON, default=list)
     order = Column(Integer, default=0)
 
     quiz = relationship("Quiz", back_populates="questions")

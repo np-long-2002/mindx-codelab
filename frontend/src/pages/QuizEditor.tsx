@@ -22,6 +22,7 @@ interface NewQuestion {
   question_text: string;
   code_snippet: string;
   explanation: string;
+  test_cases?: { input: string; expected: string; is_hidden?: boolean }[];
   options: { option_text: string; is_correct: boolean }[];
 }
 
@@ -36,6 +37,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
       question_text: '',
       code_snippet: '',
       explanation: '',
+      test_cases: [],
       options: [
         { option_text: '', is_correct: true },
         { option_text: '', is_correct: false },
@@ -52,6 +54,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
         question_text: '',
         code_snippet: '',
         explanation: '',
+        test_cases: [],
         options: [
           { option_text: '', is_correct: true },
           { option_text: '', is_correct: false },
@@ -83,6 +86,42 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
     updated[qIndex].options.forEach((opt, idx) => {
       opt.is_correct = idx === optIndex;
     });
+    setQuestions(updated);
+  };
+
+  const handleAddTestCase = (qIndex: number) => {
+    const updated = [...questions];
+    const currentTC = updated[qIndex].test_cases || [];
+    updated[qIndex].test_cases = [
+      ...currentTC,
+      { input: '', expected: '', is_hidden: false },
+    ];
+    setQuestions(updated);
+  };
+
+  const handleRemoveTestCase = (qIndex: number, tcIndex: number) => {
+    const updated = [...questions];
+    if (updated[qIndex].test_cases) {
+      updated[qIndex].test_cases = updated[qIndex].test_cases!.filter(
+        (_, idx) => idx !== tcIndex
+      );
+    }
+    setQuestions(updated);
+  };
+
+  const handleTestCaseChange = (
+    qIndex: number,
+    tcIndex: number,
+    field: string,
+    value: any
+  ) => {
+    const updated = [...questions];
+    if (updated[qIndex].test_cases) {
+      updated[qIndex].test_cases![tcIndex] = {
+        ...updated[qIndex].test_cases![tcIndex],
+        [field]: value,
+      };
+    }
     setQuestions(updated);
   };
 
@@ -147,6 +186,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
           question_text: q.question_text,
           code_snippet: q.code_snippet || null,
           explanation: q.explanation || null,
+          test_cases: q.test_cases || [],
           order: idx + 1,
           options: q.options.map((opt, oIdx) => ({
             option_text: opt.option_text,
@@ -390,6 +430,62 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
                   placeholder="Giải thích tại sao đáp án này đúng..."
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-purple-300 focus:outline-none focus:border-purple-500"
                 />
+              </div>
+
+              {/* Test cases builder for this question */}
+              <div className="pt-3 border-t border-slate-800/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
+                    <CheckCircle className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Bộ Test Cases kiểm thử cho câu này ({q.test_cases?.length || 0})</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAddTestCase(qIdx)}
+                    className="inline-flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-2.5 py-1 rounded-lg transition"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Thêm Test Case</span>
+                  </button>
+                </div>
+
+                {q.test_cases && q.test_cases.length > 0 && (
+                  <div className="space-y-2">
+                    {q.test_cases.map((tc, tcIdx) => (
+                      <div
+                        key={tcIdx}
+                        className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center gap-2"
+                      >
+                        <span className="text-[10px] font-mono text-slate-500">#{tcIdx + 1}</span>
+                        <input
+                          type="text"
+                          value={tc.input}
+                          onChange={(e) =>
+                            handleTestCaseChange(qIdx, tcIdx, 'input', e.target.value)
+                          }
+                          placeholder="Input (ví dụ: 5\n10)"
+                          className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                        />
+                        <input
+                          type="text"
+                          value={tc.expected}
+                          onChange={(e) =>
+                            handleTestCaseChange(qIdx, tcIdx, 'expected', e.target.value)
+                          }
+                          placeholder="Expected Output (ví dụ: 15)"
+                          className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-mono focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTestCase(qIdx, tcIdx)}
+                          className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-slate-800 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}

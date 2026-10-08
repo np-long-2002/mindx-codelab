@@ -4,6 +4,7 @@ export interface ParsedQuestion {
   question_text: string;
   code_snippet: string;
   explanation: string;
+  test_cases?: { input: string; expected: string; is_hidden?: boolean }[];
   options: { option_text: string; is_correct: boolean }[];
 }
 
@@ -17,6 +18,7 @@ export const downloadQuizTemplate = () => {
     'Đáp án D (Bắt buộc)',
     'Đáp án đúng (A, B, C hoặc D)',
     'Giải thích chi tiết (Tùy chọn)',
+    'Test Cases dạng Input=>Output cách nhau bởi | (Tùy chọn)',
   ];
 
   const sampleData = [
@@ -29,6 +31,7 @@ export const downloadQuizTemplate = () => {
       'printf()',
       'A',
       'Hàm print() là hàm tích hợp sẵn trong Python để in dữ liệu ra terminal.',
+      '',
     ],
     [
       'Kết quả in ra màn hình của đoạn code sau là gì?',
@@ -39,16 +42,18 @@ export const downloadQuizTemplate = () => {
       'Báo lỗi',
       'A',
       'Phép so sánh 10 > 5 trả về giá trị boolean True.',
+      '',
     ],
     [
-      'Cấu trúc dữ liệu nào trong Python được biểu diễn bằng cặp ngoặc vuông []?',
-      '',
-      'Tuple',
-      'Dictionary',
-      'List',
-      'Set',
-      'C',
-      'List (danh sách) trong Python được định nghĩa bằng cặp ngoặc vuông [].',
+      'Đoạn code sau tính tổng hai số a và b. Test case kiểm thử là gì?',
+      'a = int(input())\nb = int(input())\nprint(a + b)',
+      '15',
+      '12',
+      '20',
+      '5',
+      'A',
+      'Đoạn code đọc a và b rồi in ra tổng a + b.',
+      '5\\n10=>15 | 2\\n3=>5',
     ],
     [
       'Đoạn code sau đây sẽ in ra bao nhiêu lần chữ "MindX"?',
@@ -59,6 +64,7 @@ export const downloadQuizTemplate = () => {
       '0',
       'B',
       'range(3) sinh ra các giá trị 0, 1, 2 (tổng cộng 3 lần lặp).',
+      '',
     ],
   ];
 
@@ -74,6 +80,7 @@ export const downloadQuizTemplate = () => {
     { wch: 20 }, // Đáp án D
     { wch: 15 }, // Đáp án đúng
     { wch: 40 }, // Giải thích
+    { wch: 35 }, // Test cases
   ];
 
   const wb = XLSX.utils.book_new();
@@ -120,6 +127,23 @@ export const parseQuizExcel = (file: File): Promise<ParsedQuestion[]> => {
             .trim()
             .toUpperCase();
           const explanation = String(row[7] || '').trim();
+          const rawTestCases = String(row[8] || '').trim();
+
+          // Parse test cases if present (format: input1=>expected1 | input2=>expected2)
+          const testCases: { input: string; expected: string; is_hidden?: boolean }[] = [];
+          if (rawTestCases) {
+            const parts = rawTestCases.split('|');
+            for (const part of parts) {
+              const pair = part.split('=>');
+              if (pair.length >= 2) {
+                testCases.push({
+                  input: pair[0].trim().replace(/\\n/g, '\n'),
+                  expected: pair[1].trim().replace(/\\n/g, '\n'),
+                  is_hidden: false,
+                });
+              }
+            }
+          }
 
           // Determine correct index: default to 0 (A)
           let correctIndex = 0;
@@ -138,6 +162,7 @@ export const parseQuizExcel = (file: File): Promise<ParsedQuestion[]> => {
             question_text: questionText,
             code_snippet: codeSnippet,
             explanation: explanation,
+            test_cases: testCases,
             options,
           });
         }
@@ -156,4 +181,3 @@ export const parseQuizExcel = (file: File): Promise<ParsedQuestion[]> => {
     reader.readAsArrayBuffer(file);
   });
 };
-

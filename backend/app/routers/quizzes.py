@@ -71,6 +71,7 @@ def create_quiz(
             question_text=q_data.question_text,
             code_snippet=q_data.code_snippet,
             explanation=q_data.explanation,
+            test_cases=q_data.test_cases or [],
             order=q_idx + 1
         )
         db.add(question)

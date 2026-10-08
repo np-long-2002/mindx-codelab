@@ -240,6 +240,9 @@ def seed_quizzes(db, teacher_id):
         question_text="Đoạn code sau đây sẽ in ra màn hình kết quả gì?",
         code_snippet="""nums = [10, 20, 30, 40, 50]
 print(nums[1:4])""",
+        test_cases=[
+            {"input": "", "expected": "[20, 30, 40]"}
+        ],
         explanation="Cú pháp slicing nums[1:4] lấy các phần tử từ chỉ số index 1 đến index 3 (trước index 4), tức là [20, 30, 40].",
         order=3
     )
@@ -277,6 +280,9 @@ print(nums[1:4])""",
     return x ** y
 
 print(power(3) + power(2, 3))""",
+        test_cases=[
+            {"input": "", "expected": "17"}
+        ],
         explanation="power(3) sử dụng tham số mặc định y=2 -> 3**2 = 9. power(2, 3) tính 2**3 = 8. Tổng là 9 + 8 = 17.",
         order=5
     )
@@ -322,6 +328,9 @@ print(power(3) + power(2, 3))""",
         question_text="Đoạn code sau đây sẽ in ra bao nhiêu số?",
         code_snippet="""for i in range(1, 10, 2):
     print(i)""",
+        test_cases=[
+            {"input": "", "expected": "1\n3\n5\n7\n9"}
+        ],
         explanation="Hàm range(1, 10, 2) sinh ra dãy số: 1, 3, 5, 7, 9 (tổng cộng 5 số).",
         order=2
     )

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import Editor from '@monaco-editor/react';
-import type { QuizDetail, QuizSubmitResult } from '../types';
+import type { QuizDetail, QuizSubmitResult, TestResult } from '../types';
 import { quizzesApi } from '../services/api';
 import { usePyodide } from '../hooks/usePyodide';
 import {
@@ -18,6 +18,7 @@ import {
   Play,
   Terminal,
   Code2,
+  Check,
 } from 'lucide-react';
 
 interface QuizPlayerProps {
@@ -26,7 +27,7 @@ interface QuizPlayerProps {
 }
 
 export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
-  const { runCode, isReady: isPyodideReady } = usePyodide();
+  const { runCode, evaluateTestCases, isReady: isPyodideReady } = usePyodide();
   const [quiz, setQuiz] = useState<QuizDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -77,16 +78,50 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
   const [sandboxOutput, setSandboxOutput] = useState<string>('');
   const [sandboxError, setSandboxError] = useState<string | null>(null);
 
+  // Question Test Cases States
+  const [sandboxTab, setSandboxTab] = useState<'terminal' | 'tests'>('terminal');
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [isRunningTests, setIsRunningTests] = useState(false);
+
   // Synchronize sandbox when current question changes
   useEffect(() => {
     if (quiz && quiz.questions[currentIndex]) {
-      const snip = quiz.questions[currentIndex].code_snippet || '';
+      const q = quiz.questions[currentIndex];
+      const snip = q.code_snippet || '';
       setSandboxCode(snip);
       setSandboxOutput('');
       setSandboxError(null);
-      setIsSandboxOpen(!!snip);
+      setTestResults([]);
+      const hasTests = Boolean(q.test_cases && q.test_cases.length > 0);
+      setSandboxTab(hasTests ? 'tests' : 'terminal');
+      setIsSandboxOpen(Boolean(snip) || hasTests);
     }
   }, [currentIndex, quiz]);
+
+  const handleRunTestCases = async () => {
+    if (!quiz) return;
+    const q = quiz.questions[currentIndex];
+    if (!q.test_cases || q.test_cases.length === 0 || isRunningTests) return;
+
+    setIsRunningTests(true);
+    setSandboxTab('tests');
+
+    try {
+      const formattedCases = q.test_cases.map((tc: any, idx) => ({
+        input_data: tc.input ?? tc.input_data ?? '',
+        expected_output: tc.expected ?? tc.expected_output ?? '',
+        is_hidden: tc.is_hidden || false,
+        order: idx + 1,
+      }));
+
+      const evalRes = await evaluateTestCases(sandboxCode, formattedCases);
+      setTestResults(evalRes.results);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsRunningTests(false);
+    }
+  };
 
   const handleRunSandbox = async () => {
     if (!sandboxCode.trim() || isRunningCode) return;
@@ -435,14 +470,14 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
               {currentQ.question_text}
             </h3>
 
-            {/* Interactive Live Python Sandbox */}
+            {/* Interactive Live Python Sandbox with Test Cases */}
             {currentQ.code_snippet || isSandboxOpen ? (
               <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-lg">
-                <div className="bg-slate-900/90 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                <div className="bg-slate-900/90 px-4 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Code2 className="w-4 h-4 text-emerald-400" />
                     <span className="text-xs font-bold text-slate-200">
-                      Chạy thử & Thực hành code trực tiếp (Live Sandbox)
+                      Chạy thử & Kiểm tra Test Cases (Live Sandbox)
                     </span>
                     <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
                       Python 3 WASM
@@ -465,11 +500,27 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
                       type="button"
                       onClick={handleRunSandbox}
                       disabled={isRunningCode || !isPyodideReady}
-                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/30 transition disabled:opacity-50"
+                      className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition disabled:opacity-50"
                     >
-                      <Play className={`w-3.5 h-3.5 ${isRunningCode ? 'animate-spin' : ''}`} />
-                      <span>{isRunningCode ? 'Đang chạy...' : 'Chạy thử nghiệm (Run)'}</span>
+                      <Play className={`w-3.5 h-3.5 text-emerald-400 ${isRunningCode ? 'animate-spin' : ''}`} />
+                      <span>{isRunningCode ? 'Đang chạy...' : 'Chạy thử Console'}</span>
                     </button>
+
+                    {currentQ.test_cases && currentQ.test_cases.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleRunTestCases}
+                        disabled={isRunningTests || !isPyodideReady}
+                        className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/30 transition disabled:opacity-50"
+                      >
+                        <Check className={`w-3.5 h-3.5 ${isRunningTests ? 'animate-bounce' : ''}`} />
+                        <span>
+                          {isRunningTests
+                            ? 'Đang kiểm tra...'
+                            : `Kiểm tra Test Cases (${currentQ.test_cases.length})`}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -493,24 +544,125 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
                   />
                 </div>
 
-                {/* Console Output */}
-                {(sandboxOutput || sandboxError) && (
-                  <div className="bg-slate-900 border-t border-slate-800 p-3 font-mono text-xs">
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1 font-semibold">
-                      <Terminal className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Kết quả in ra (Console Output):</span>
-                    </div>
-                    {sandboxError ? (
-                      <pre className="text-rose-400 whitespace-pre-wrap bg-rose-950/30 p-2 rounded-lg border border-rose-900/50">
-                        {sandboxError}
-                      </pre>
+                {/* Sandbox Tabs (Terminal / Test Cases) */}
+                <div className="bg-slate-900 border-t border-slate-800">
+                  <div className="flex items-center px-3 pt-2 gap-2 border-b border-slate-800/80">
+                    {currentQ.test_cases && currentQ.test_cases.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSandboxTab('tests')}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-t-lg transition border-b-2 ${
+                          sandboxTab === 'tests'
+                            ? 'border-indigo-500 text-indigo-400 bg-slate-950/40'
+                            : 'border-transparent text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Bộ Test Cases ({currentQ.test_cases.length})</span>
+                        {testResults.length > 0 && (
+                          <span
+                            className={`ml-1 text-[10px] px-1.5 py-0.2 rounded-full ${
+                              testResults.every((r) => r.passed)
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-rose-500/20 text-rose-400'
+                            }`}
+                          >
+                            {testResults.filter((r) => r.passed).length}/{testResults.length} Pass
+                          </span>
+                        )}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setSandboxTab('terminal')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-t-lg transition border-b-2 ${
+                        sandboxTab === 'terminal'
+                          ? 'border-indigo-500 text-indigo-400 bg-slate-950/40'
+                          : 'border-transparent text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Terminal className="w-3.5 h-3.5" />
+                      <span>Terminal Console</span>
+                    </button>
+                  </div>
+
+                  {/* Tab Body */}
+                  <div className="p-3 font-mono text-xs max-h-52 overflow-y-auto">
+                    {sandboxTab === 'tests' ? (
+                      /* Test Cases Result View */
+                      <div className="space-y-2">
+                        {testResults.length === 0 ? (
+                          <div className="text-slate-400 text-center py-4 font-sans text-xs">
+                            Bấm nút <strong className="text-indigo-400">"Kiểm tra Test Cases"</strong> ở trên để tự động chạy và chấm thử mã nguồn của bạn.
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {testResults.every((r) => r.passed) && (
+                              <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 font-sans text-xs flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                                <span>Tuyệt vời! Mã nguồn của bạn đã vượt qua tất cả test cases của câu hỏi này!</span>
+                              </div>
+                            )}
+
+                            {testResults.map((tr) => (
+                              <div
+                                key={tr.order}
+                                className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                                  tr.passed
+                                    ? 'bg-emerald-950/20 border-emerald-500/30'
+                                    : 'bg-rose-950/20 border-rose-500/30'
+                                }`}
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-slate-200">
+                                      Test Case #{tr.order}
+                                    </span>
+                                    <span
+                                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                        tr.passed
+                                          ? 'bg-emerald-500/20 text-emerald-400'
+                                          : 'bg-rose-500/20 text-rose-400'
+                                      }`}
+                                    >
+                                      {tr.passed ? 'PASSED' : 'FAILED'}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-400">
+                                    <span>Input: </span>
+                                    <span className="text-slate-300">{tr.input || '(None)'}</span>
+                                    <span className="mx-2">|</span>
+                                    <span>Kỳ vọng: </span>
+                                    <span className="text-emerald-400">{tr.expected}</span>
+                                    <span className="mx-2">|</span>
+                                    <span>Thực tế: </span>
+                                    <span className={tr.passed ? 'text-emerald-400' : 'text-rose-400'}>
+                                      {tr.actual || tr.error || '(Rỗng)'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     ) : (
-                      <pre className="text-emerald-400 whitespace-pre-wrap bg-slate-950 p-2 rounded-lg border border-slate-800">
-                        {sandboxOutput}
-                      </pre>
+                      /* Terminal Console View */
+                      <div>
+                        {sandboxError ? (
+                          <pre className="text-rose-400 whitespace-pre-wrap bg-rose-950/30 p-2 rounded-lg border border-rose-900/50">
+                            {sandboxError}
+                          </pre>
+                        ) : (
+                          <pre className="text-emerald-400 whitespace-pre-wrap bg-slate-950 p-2 rounded-lg border border-slate-800">
+                            {sandboxOutput || 'Chưa có output. Nhấn "Chạy thử Console" để thực thi.'}
+                          </pre>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                </div>
               </div>
             ) : (
               <div className="flex justify-end">

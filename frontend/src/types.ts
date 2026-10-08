@@ -75,6 +75,7 @@ export interface QuizQuestion {
   question_text: string;
   code_snippet?: string;
   explanation?: string;
+  test_cases?: { input: string; expected: string; is_hidden?: boolean }[];
   order: number;
   options: QuizOption[];
 }

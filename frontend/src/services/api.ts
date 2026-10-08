@@ -128,6 +128,10 @@ export const quizzesApi = {
     const res = await api.get<QuizAttempt[]>(`/quizzes/${quizId}/attempts`);
     return res.data;
   },
+  getAttemptDetail: async (quizId: number, attemptId: number) => {
+    const res = await api.get<QuizAttempt>(`/quizzes/${quizId}/attempts/${attemptId}`);
+    return res.data;
+  },
 };
 
 export default api;

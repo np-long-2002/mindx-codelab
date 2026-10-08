@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Quiz } from '../types';
 import { quizzesApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { QuizSubmissionsModal } from '../components/QuizSubmissionsModal';
 import {
   HelpCircle,
   Clock,
@@ -14,6 +15,7 @@ import {
   Send,
   Layers,
   Lock,
+  Users,
 } from 'lucide-react';
 
 interface QuizListProps {
@@ -31,6 +33,7 @@ export const QuizList: React.FC<QuizListProps> = ({
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'ALL' | 'ASSIGNED' | 'DRAFT'>('ALL');
+  const [inspectingQuiz, setInspectingQuiz] = useState<Quiz | null>(null);
 
   const fetchQuizzes = async () => {
     setLoading(true);
@@ -229,9 +232,27 @@ export const QuizList: React.FC<QuizListProps> = ({
                     {quiz.title}
                   </h3>
 
-                  <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed mb-6">
+                  <p className="text-xs text-slate-400 line-clamp-3 leading-relaxed mb-4">
                     {quiz.description || 'Bài tập trắc nghiệm & thực hành kiểm tra kiến thức.'}
                   </p>
+
+                  {isTeacher && (
+                    <div className="mb-4">
+                      <button
+                        onClick={() => setInspectingQuiz(quiz)}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 hover:bg-purple-950/30 border border-slate-800 hover:border-purple-500/40 text-xs transition group/btn"
+                      >
+                        <span className="flex items-center gap-2 text-slate-300 group-hover/btn:text-purple-200">
+                          <Users className="w-4 h-4 text-purple-400" />
+                          <span>Xem bài nộp của học viên</span>
+                        </span>
+                        <span className="font-semibold text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                          <span>{quiz.attempt_count ?? 0}</span>
+                          <span className="text-[10px] text-slate-400">lượt nộp</span>
+                        </span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-2">
@@ -290,6 +311,17 @@ export const QuizList: React.FC<QuizListProps> = ({
             );
           })}
         </div>
+      )}
+
+      {/* Teacher Inspect Submissions Modal */}
+      {inspectingQuiz && (
+        <QuizSubmissionsModal
+          quiz={inspectingQuiz}
+          onClose={() => {
+            setInspectingQuiz(null);
+            fetchQuizzes();
+          }}
+        />
       )}
     </div>
   );

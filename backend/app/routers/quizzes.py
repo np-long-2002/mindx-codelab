@@ -34,6 +34,7 @@ def list_quizzes(
     for q in quizzes:
         item = QuizOut.model_validate(q)
         item.question_count = len(q.questions)
+        item.attempt_count = len(q.attempts)
         results.append(item)
     return results
 
@@ -234,13 +235,22 @@ def submit_quiz(
     score = correct_count
     percentage = round((score / total_questions * 100), 1) if total_questions > 0 else 0.0
 
+    results_dict = [
+        r.model_dump() if hasattr(r, 'model_dump') else r.dict()
+        for r in results
+    ]
+
     attempt = QuizAttempt(
         quiz_id=quiz.id,
         user_id=current_user.id,
         score=score,
         total_questions=total_questions,
         time_spent_seconds=submission.time_spent_seconds,
-        user_answers={str(k): v for k, v in submission.answers.items()}
+        user_answers={
+            "answers": {str(k): v for k, v in submission.answers.items()},
+            "practice_answers": submission.practice_answers or {},
+            "results": results_dict
+        }
     )
     db.add(attempt)
     db.commit()
@@ -270,7 +280,83 @@ def get_quiz_attempts(
     for att in attempts:
         item = QuizAttemptOut.model_validate(att)
         item.user_name = att.user.full_name if att.user else "Ẩn danh"
+        item.user_email = att.user.email if att.user else ""
         item.percentage = round((att.score / att.total_questions * 100), 1) if att.total_questions > 0 else 0.0
         results.append(item)
     return results
+
+@router.get("/{quiz_id}/attempts/{attempt_id}", response_model=QuizAttemptOut)
+def get_quiz_attempt_detail(
+    quiz_id: int,
+    attempt_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    attempt = db.query(QuizAttempt).filter(
+        QuizAttempt.id == attempt_id,
+        QuizAttempt.quiz_id == quiz_id
+    ).first()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="Không tìm thấy bài làm này")
+
+    if current_user.role != "TEACHER" and attempt.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Bạn không có quyền xem bài làm này")
+
+    item = QuizAttemptOut.model_validate(attempt)
+    item.user_name = attempt.user.full_name if attempt.user else "Ẩn danh"
+    item.user_email = attempt.user.email if attempt.user else ""
+    item.percentage = round((att := attempt, att.score / att.total_questions * 100), 1) if attempt.total_questions > 0 else 0.0
+
+    raw_data = attempt.user_answers or {}
+    if isinstance(raw_data, dict) and "results" in raw_data and raw_data["results"]:
+        item.results = [QuestionResultOut(**r) for r in raw_data["results"]]
+    else:
+        # Reconstruct for older attempts
+        quiz = attempt.quiz
+        reconstructed = []
+        answers_dict = raw_data.get("answers", raw_data) if isinstance(raw_data, dict) else {}
+        practice_dict = raw_data.get("practice_answers", {}) if isinstance(raw_data, dict) else {}
+        for q in quiz.questions:
+            q_type = getattr(q, 'question_type', None)
+            if not q_type:
+                q_type = "PRACTICE" if (q.test_cases and len(q.test_cases) > 0) else "THEORY"
+
+            if q_type == "PRACTICE":
+                p_item = practice_dict.get(str(q.id)) or practice_dict.get(q.id) or {}
+                reconstructed.append(QuestionResultOut(
+                    question_id=q.id,
+                    question_text=q.question_text,
+                    question_type="PRACTICE",
+                    code_snippet=q.code_snippet,
+                    selected_option_id=None,
+                    correct_option_id=None,
+                    is_correct=bool(p_item.get("passed", False)),
+                    explanation=q.explanation,
+                    student_code=p_item.get("code", ""),
+                    tests_passed=p_item.get("passed_count", 0),
+                    total_tests=p_item.get("total_count", len(q.test_cases or [])),
+                    options=[]
+                ))
+            else:
+                sel_opt_id = answers_dict.get(str(q.id)) or answers_dict.get(q.id)
+                try:
+                    sel_opt_id = int(sel_opt_id) if sel_opt_id is not None else None
+                except (ValueError, TypeError):
+                    sel_opt_id = None
+                corr_opt = next((opt for opt in q.options if opt.is_correct), None)
+                corr_opt_id = corr_opt.id if corr_opt else -1
+                reconstructed.append(QuestionResultOut(
+                    question_id=q.id,
+                    question_text=q.question_text,
+                    question_type="THEORY",
+                    code_snippet=q.code_snippet,
+                    selected_option_id=sel_opt_id,
+                    correct_option_id=corr_opt_id,
+                    is_correct=sel_opt_id is not None and sel_opt_id == corr_opt_id,
+                    explanation=q.explanation,
+                    options=[QuizOptionOut.model_validate(opt) for opt in q.options]
+                ))
+        item.results = reconstructed
+
+    return item
 

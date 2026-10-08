@@ -90,6 +90,7 @@ export interface Quiz {
   author_id: number;
   created_at: string;
   question_count: number;
+  attempt_count?: number;
 }
 
 export interface QuizDetail extends Quiz {
@@ -125,11 +126,13 @@ export interface QuizAttempt {
   quiz_id: number;
   user_id: number;
   user_name?: string;
+  user_email?: string;
   score: number;
   total_questions: number;
   percentage: number;
   time_spent_seconds: number;
   created_at: string;
+  results?: QuestionResult[];
 }
 
 

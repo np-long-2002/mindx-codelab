@@ -73,6 +73,7 @@ class QuizOut(QuizBase):
     author_id: int
     created_at: datetime
     question_count: int = 0
+    attempt_count: int = 0
 
     class Config:
         from_attributes = True
@@ -116,11 +117,13 @@ class QuizAttemptOut(BaseModel):
     quiz_id: int
     user_id: int
     user_name: Optional[str] = None
+    user_email: Optional[str] = None
     score: int
     total_questions: int
     percentage: float
     time_spent_seconds: int
     created_at: datetime
+    results: Optional[List[QuestionResultOut]] = None
 
     class Config:
         from_attributes = True

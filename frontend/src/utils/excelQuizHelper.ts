@@ -156,3 +156,4 @@ export const parseQuizExcel = (file: File): Promise<ParsedQuestion[]> => {
     reader.readAsArrayBuffer(file);
   });
 };
+

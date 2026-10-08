@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
+import Editor from '@monaco-editor/react';
 import type { QuizDetail, QuizSubmitResult } from '../types';
 import { quizzesApi } from '../services/api';
+import { usePyodide } from '../hooks/usePyodide';
 import {
   Clock,
   ArrowLeft,
@@ -13,6 +15,9 @@ import {
   RotateCcw,
   Sparkles,
   Award,
+  Play,
+  Terminal,
+  Code2,
 } from 'lucide-react';
 
 interface QuizPlayerProps {
@@ -21,6 +26,7 @@ interface QuizPlayerProps {
 }
 
 export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
+  const { runCode, isReady: isPyodideReady } = usePyodide();
   const [quiz, setQuiz] = useState<QuizDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -63,6 +69,55 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
 
     return () => clearInterval(interval);
   }, [quiz, result, timeRemaining]);
+
+  // Code Sandbox States
+  const [sandboxCode, setSandboxCode] = useState<string>('');
+  const [isSandboxOpen, setIsSandboxOpen] = useState(false);
+  const [isRunningCode, setIsRunningCode] = useState(false);
+  const [sandboxOutput, setSandboxOutput] = useState<string>('');
+  const [sandboxError, setSandboxError] = useState<string | null>(null);
+
+  // Synchronize sandbox when current question changes
+  useEffect(() => {
+    if (quiz && quiz.questions[currentIndex]) {
+      const snip = quiz.questions[currentIndex].code_snippet || '';
+      setSandboxCode(snip);
+      setSandboxOutput('');
+      setSandboxError(null);
+      setIsSandboxOpen(!!snip);
+    }
+  }, [currentIndex, quiz]);
+
+  const handleRunSandbox = async () => {
+    if (!sandboxCode.trim() || isRunningCode) return;
+    setIsRunningCode(true);
+    setSandboxOutput('Đang thực thi code Python...\n');
+    setSandboxError(null);
+
+    try {
+      const res = await runCode(sandboxCode, '');
+      if (res.error) {
+        setSandboxError(res.error);
+        setSandboxOutput(res.stdout || '');
+      } else {
+        setSandboxOutput(
+          res.stdout || 'Chương trình thực thi thành công không có output (bạn có thể thêm hàm print() để xem kết quả).'
+        );
+      }
+    } catch (err: any) {
+      setSandboxError(err.message || String(err));
+    } finally {
+      setIsRunningCode(false);
+    }
+  };
+
+  const handleResetSandbox = () => {
+    if (quiz && quiz.questions[currentIndex]) {
+      setSandboxCode(quiz.questions[currentIndex].code_snippet || '');
+      setSandboxOutput('');
+      setSandboxError(null);
+    }
+  };
 
   const handleSelectOption = (questionId: number, optionId: number) => {
     if (result) return;
@@ -380,11 +435,96 @@ export const QuizPlayer: React.FC<QuizPlayerProps> = ({ quizId, onBack }) => {
               {currentQ.question_text}
             </h3>
 
-            {currentQ.code_snippet && (
-              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800">
-                <pre className="font-mono text-xs md:text-sm text-emerald-400 whitespace-pre-wrap leading-relaxed">
-                  {currentQ.code_snippet}
-                </pre>
+            {/* Interactive Live Python Sandbox */}
+            {currentQ.code_snippet || isSandboxOpen ? (
+              <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-lg">
+                <div className="bg-slate-900/90 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-bold text-slate-200">
+                      Chạy thử & Thực hành code trực tiếp (Live Sandbox)
+                    </span>
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
+                      Python 3 WASM
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {currentQ.code_snippet && (
+                      <button
+                        type="button"
+                        onClick={handleResetSandbox}
+                        title="Khôi phục lại code gốc của đề bài"
+                        className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleRunSandbox}
+                      disabled={isRunningCode || !isPyodideReady}
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-md shadow-emerald-600/30 transition disabled:opacity-50"
+                    >
+                      <Play className={`w-3.5 h-3.5 ${isRunningCode ? 'animate-spin' : ''}`} />
+                      <span>{isRunningCode ? 'Đang chạy...' : 'Chạy thử nghiệm (Run)'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Editor Container */}
+                <div className="h-44 relative bg-slate-950">
+                  <Editor
+                    height="100%"
+                    defaultLanguage="python"
+                    theme="vs-dark"
+                    value={sandboxCode}
+                    onChange={(val) => setSandboxCode(val || '')}
+                    options={{
+                      fontSize: 13,
+                      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      tabSize: 4,
+                      lineNumbers: 'on',
+                      padding: { top: 8, bottom: 8 },
+                    }}
+                  />
+                </div>
+
+                {/* Console Output */}
+                {(sandboxOutput || sandboxError) && (
+                  <div className="bg-slate-900 border-t border-slate-800 p-3 font-mono text-xs">
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1 font-semibold">
+                      <Terminal className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Kết quả in ra (Console Output):</span>
+                    </div>
+                    {sandboxError ? (
+                      <pre className="text-rose-400 whitespace-pre-wrap bg-rose-950/30 p-2 rounded-lg border border-rose-900/50">
+                        {sandboxError}
+                      </pre>
+                    ) : (
+                      <pre className="text-emerald-400 whitespace-pre-wrap bg-slate-950 p-2 rounded-lg border border-slate-800">
+                        {sandboxOutput}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSandboxCode('# Bạn có thể viết code thử nghiệm tại đây\n');
+                    setIsSandboxOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 font-medium bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-3 py-1.5 rounded-xl transition"
+                >
+                  <Code2 className="w-3.5 h-3.5" />
+                  <span>💡 Mở Python Sandbox để tự gõ code kiểm tra câu này</span>
+                </button>
               </div>
             )}
 

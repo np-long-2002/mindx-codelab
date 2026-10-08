@@ -10,6 +10,9 @@ import {
   FileSpreadsheet,
   Download,
   Upload,
+  BookOpen,
+  Code2,
+  Terminal,
 } from 'lucide-react';
 import { downloadQuizTemplate, parseQuizExcel } from '../utils/excelQuizHelper';
 
@@ -20,6 +23,7 @@ interface QuizEditorProps {
 
 interface NewQuestion {
   question_text: string;
+  question_type?: 'THEORY' | 'PRACTICE';
   code_snippet: string;
   explanation: string;
   test_cases?: { input: string; expected: string; is_hidden?: boolean }[];
@@ -35,6 +39,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
   const [questions, setQuestions] = useState<NewQuestion[]>([
     {
       question_text: '',
+      question_type: 'THEORY',
       code_snippet: '',
       explanation: '',
       test_cases: [],
@@ -47,14 +52,15 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
     },
   ]);
 
-  const handleAddQuestion = () => {
+  const handleAddQuestion = (type: 'THEORY' | 'PRACTICE' = 'THEORY') => {
     setQuestions([
       ...questions,
       {
         question_text: '',
+        question_type: type,
         code_snippet: '',
         explanation: '',
-        test_cases: [],
+        test_cases: type === 'PRACTICE' ? [{ input: '', expected: '', is_hidden: false }] : [],
         options: [
           { option_text: '', is_correct: true },
           { option_text: '', is_correct: false },
@@ -63,6 +69,15 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
         ],
       },
     ]);
+  };
+
+  const handleToggleQuestionType = (qIndex: number, type: 'THEORY' | 'PRACTICE') => {
+    const updated = [...questions];
+    updated[qIndex].question_type = type;
+    if (type === 'PRACTICE' && (!updated[qIndex].test_cases || updated[qIndex].test_cases!.length === 0)) {
+      updated[qIndex].test_cases = [{ input: '', expected: '', is_hidden: false }];
+    }
+    setQuestions(updated);
   };
 
   const handleRemoveQuestion = (qIndex: number) => {
@@ -92,6 +107,7 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
   const handleAddTestCase = (qIndex: number) => {
     const updated = [...questions];
     const currentTC = updated[qIndex].test_cases || [];
+    updated[qIndex].question_type = 'PRACTICE';
     updated[qIndex].test_cases = [
       ...currentTC,
       { input: '', expected: '', is_hidden: false },
@@ -182,18 +198,23 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
         title,
         description,
         time_limit_minutes: timeLimitMinutes,
-        questions: questions.map((q, idx) => ({
-          question_text: q.question_text,
-          code_snippet: q.code_snippet || null,
-          explanation: q.explanation || null,
-          test_cases: q.test_cases || [],
-          order: idx + 1,
-          options: q.options.map((opt, oIdx) => ({
-            option_text: opt.option_text,
-            is_correct: opt.is_correct,
-            order: oIdx + 1,
-          })),
-        })),
+        questions: questions.map((q, idx) => {
+          const isPractice =
+            q.question_type === 'PRACTICE' || (q.test_cases && q.test_cases.length > 0);
+          return {
+            question_text: q.question_text,
+            question_type: isPractice ? 'PRACTICE' : 'THEORY',
+            code_snippet: q.code_snippet || null,
+            explanation: q.explanation || null,
+            test_cases: q.test_cases || [],
+            order: idx + 1,
+            options: q.options.map((opt, oIdx) => ({
+              option_text: opt.option_text,
+              is_correct: opt.is_correct,
+              order: oIdx + 1,
+            })),
+          };
+        }),
       });
 
       onSaved();
@@ -315,39 +336,122 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
 
         {/* Questions Builder */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-white">
-              Danh sách câu hỏi ({questions.length} câu)
-            </h2>
-            <button
-              type="button"
-              onClick={handleAddQuestion}
-              className="inline-flex items-center gap-1.5 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white px-3 py-1.5 rounded-xl text-xs font-semibold transition"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Thêm câu hỏi</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-white">
+                Danh sách câu hỏi ({questions.length} câu)
+              </h2>
+              <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
+                <span className="flex items-center gap-1 text-cyan-400 font-medium">
+                  <BookOpen className="w-3.5 h-3.5" />
+                  {questions.filter((q) => !(q.question_type === 'PRACTICE' || (q.test_cases && q.test_cases.length > 0))).length} câu lý thuyết
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-1 text-purple-400 font-semibold">
+                  <Code2 className="w-3.5 h-3.5" />
+                  {questions.filter((q) => q.question_type === 'PRACTICE' || (q.test_cases && q.test_cases.length > 0)).length} câu thực hành (có Test Cases)
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleAddQuestion('THEORY')}
+                className="inline-flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition"
+              >
+                <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                <span>+ Câu Lý thuyết</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddQuestion('PRACTICE')}
+                className="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-xl text-xs font-semibold shadow-md shadow-purple-600/30 transition"
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                <span>+ Câu Thực hành</span>
+              </button>
+            </div>
           </div>
 
-          {questions.map((q, qIdx) => (
-            <div
-              key={qIdx}
-              className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-lg"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-purple-400 uppercase tracking-wider">
-                  Câu hỏi #{qIdx + 1}
-                </span>
-                {questions.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveQuestion(qIdx)}
-                    className="p-1 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+          {questions.map((q, qIdx) => {
+            const isPractice =
+              q.question_type === 'PRACTICE' || (q.test_cases && q.test_cases.length > 0);
+
+            return (
+              <div
+                key={qIdx}
+                className={`bg-slate-900 border rounded-2xl p-6 space-y-4 shadow-lg transition ${
+                  isPractice
+                    ? 'border-purple-500/40 shadow-purple-950/20'
+                    : 'border-slate-800'
+                }`}
+              >
+                {/* Header with Type Selector */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-white bg-slate-800 px-2.5 py-1 rounded-lg">
+                      Câu #{qIdx + 1}
+                    </span>
+
+                    {/* Question Type Toggle */}
+                    <div className="flex items-center bg-slate-950 p-0.5 rounded-xl border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleQuestionType(qIdx, 'THEORY')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                          !isPractice
+                            ? 'bg-slate-800 text-cyan-400 border border-slate-700 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>Lý thuyết</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleQuestionType(qIdx, 'PRACTICE')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                          isPractice
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/30'
+                            : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <Code2 className="w-3.5 h-3.5" />
+                        <span>Thực hành (Code + Test Cases)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isPractice && (
+                      <span className="text-[11px] font-bold text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <Terminal className="w-3 h-3 text-purple-400" />
+                        <span>Thực hành ({q.test_cases?.length || 0} Test Cases)</span>
+                      </span>
+                    )}
+                    {questions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveQuestion(qIdx)}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition"
+                        title="Xóa câu hỏi này"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Practical Question Info Banner */}
+                {isPractice && (
+                  <div className="bg-purple-950/30 border border-purple-500/30 rounded-xl p-3 text-xs text-purple-200 flex items-center gap-2.5">
+                    <Terminal className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                    <div>
+                      <span className="font-bold text-white">Chế độ Thực hành:</span> Câu hỏi này được thiết lập là bài tập thực hành. Học viên sẽ có trình soạn thảo Python và kiểm thử tự động với bộ Test Cases bên dưới trước khi chọn đáp án trắc nghiệm.
+                    </div>
+                  </div>
                 )}
-              </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
@@ -488,8 +592,9 @@ export const QuizEditor: React.FC<QuizEditorProps> = ({ onBack, onSaved }) => {
                 )}
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
         {/* Submit Button */}
         <div className="flex justify-end gap-3 pt-4">

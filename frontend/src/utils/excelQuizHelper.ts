@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 
 export interface ParsedQuestion {
   question_text: string;
+  question_type?: 'THEORY' | 'PRACTICE';
   code_snippet: string;
   explanation: string;
   test_cases?: { input: string; expected: string; is_hidden?: boolean }[];
@@ -158,8 +159,10 @@ export const parseQuizExcel = (file: File): Promise<ParsedQuestion[]> => {
             { option_text: optD || 'Đáp án D', is_correct: correctIndex === 3 },
           ];
 
+          const isPractice = testCases.length > 0;
           parsedQuestions.push({
             question_text: questionText,
+            question_type: isPractice ? 'PRACTICE' : 'THEORY',
             code_snippet: codeSnippet,
             explanation: explanation,
             test_cases: testCases,

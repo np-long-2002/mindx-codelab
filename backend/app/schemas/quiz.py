@@ -29,6 +29,7 @@ class QuizOptionStudentOut(BaseModel):
 # Questions
 class QuizQuestionBase(BaseModel):
     question_text: str
+    question_type: Optional[str] = "THEORY"
     code_snippet: Optional[str] = None
     explanation: Optional[str] = None
     test_cases: Optional[List[Dict[str, Any]]] = []
@@ -48,6 +49,7 @@ class QuizQuestionOut(QuizQuestionBase):
 class QuizQuestionStudentOut(BaseModel):
     id: int
     question_text: str
+    question_type: Optional[str] = "THEORY"
     code_snippet: Optional[str] = None
     test_cases: Optional[List[Dict[str, Any]]] = []
     order: int
@@ -88,6 +90,7 @@ class QuizSubmitIn(BaseModel):
 class QuestionResultOut(BaseModel):
     question_id: int
     question_text: str
+    question_type: Optional[str] = "THEORY"
     code_snippet: Optional[str] = None
     selected_option_id: Optional[int] = None
     correct_option_id: int

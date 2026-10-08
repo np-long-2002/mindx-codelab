@@ -1,11 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import engine, Base
+from app.database import engine, Base, run_migrations
 import app.models  # register all models
 from app.routers import auth, problems, submissions, quizzes
 
-# Create database tables
+# Create database tables and run automatic lightweight column migrations
 Base.metadata.create_all(bind=engine)
+run_migrations()
 
 app = FastAPI(
     title="MindX-CodeLab API",

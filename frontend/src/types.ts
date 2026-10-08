@@ -73,6 +73,7 @@ export interface QuizOption {
 export interface QuizQuestion {
   id: number;
   question_text: string;
+  question_type?: 'THEORY' | 'PRACTICE';
   code_snippet?: string;
   explanation?: string;
   test_cases?: { input: string; expected: string; is_hidden?: boolean }[];
@@ -97,6 +98,7 @@ export interface QuizDetail extends Quiz {
 export interface QuestionResult {
   question_id: number;
   question_text: string;
+  question_type?: 'THEORY' | 'PRACTICE';
   code_snippet?: string;
   selected_option_id?: number;
   correct_option_id: number;

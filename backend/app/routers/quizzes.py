@@ -66,9 +66,15 @@ def create_quiz(
     db.flush()
 
     for q_idx, q_data in enumerate(quiz_in.questions):
+        # Automatically mark as PRACTICE if test cases exist, or if explicitly PRACTICE
+        q_type = q_data.question_type or "THEORY"
+        if q_data.test_cases and len(q_data.test_cases) > 0:
+            q_type = "PRACTICE"
+
         question = QuizQuestion(
             quiz_id=quiz.id,
             question_text=q_data.question_text,
+            question_type=q_type,
             code_snippet=q_data.code_snippet,
             explanation=q_data.explanation,
             test_cases=q_data.test_cases or [],
@@ -129,9 +135,14 @@ def submit_quiz(
         if is_correct:
             correct_count += 1
 
+        q_type = getattr(q, 'question_type', None)
+        if not q_type:
+            q_type = "PRACTICE" if (q.test_cases and len(q.test_cases) > 0) else "THEORY"
+
         results.append(QuestionResultOut(
             question_id=q.id,
             question_text=q.question_text,
+            question_type=q_type,
             code_snippet=q.code_snippet,
             selected_option_id=selected_opt_id,
             correct_option_id=correct_opt_id,

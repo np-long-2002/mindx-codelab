@@ -204,6 +204,7 @@ def seed_quizzes(db, teacher_id):
     q1 = QuizQuestion(
         quiz_id=quiz1.id,
         question_text="Trong Python 3, kết quả trả về của hàm `type(5 / 2)` là gì?",
+        question_type="THEORY",
         code_snippet=None,
         explanation="Trong Python 3, toán tử `/` luôn thực hiện phép chia thực và trả về kiểu float. Phép chia lấy phần nguyên là `//`.",
         order=1
@@ -221,6 +222,7 @@ def seed_quizzes(db, teacher_id):
     q2 = QuizQuestion(
         quiz_id=quiz1.id,
         question_text="Tên biến nào sau đây là KHÔNG HỢP LỆ trong ngôn ngữ Python?",
+        question_type="THEORY",
         code_snippet=None,
         explanation="Trong Python, tên biến không được phép bắt đầu bằng số (ví dụ: `2nd_number` là sai cú pháp).",
         order=2
@@ -238,6 +240,7 @@ def seed_quizzes(db, teacher_id):
     q3 = QuizQuestion(
         quiz_id=quiz1.id,
         question_text="Đoạn code sau đây sẽ in ra màn hình kết quả gì?",
+        question_type="PRACTICE",
         code_snippet="""nums = [10, 20, 30, 40, 50]
 print(nums[1:4])""",
         test_cases=[
@@ -259,6 +262,7 @@ print(nums[1:4])""",
     q4 = QuizQuestion(
         quiz_id=quiz1.id,
         question_text="Kiểu dữ liệu nào dưới đây là Immutable (bất biến, không thể sửa đổi sau khi tạo)?",
+        question_type="THEORY",
         code_snippet=None,
         explanation="Tuple trong Python là kiểu dữ liệu bất biến (immutable), không thể thay đổi phần tử sau khi khởi tạo.",
         order=4
@@ -276,6 +280,7 @@ print(nums[1:4])""",
     q5 = QuizQuestion(
         quiz_id=quiz1.id,
         question_text="Kết quả của đoạn chương trình Python sau là gì?",
+        question_type="PRACTICE",
         code_snippet="""def power(x, y=2):
     return x ** y
 
@@ -309,6 +314,7 @@ print(power(3) + power(2, 3))""",
     q2_1 = QuizQuestion(
         quiz_id=quiz2.id,
         question_text="Từ khóa nào dùng để bỏ qua lần lặp hiện tại và chuyển sang lần lặp kế tiếp trong vòng lặp?",
+        question_type="THEORY",
         code_snippet=None,
         explanation="Từ khóa `continue` dùng để bỏ qua các lệnh còn lại của vòng lặp hiện tại và nhảy sang lần lặp tiếp theo. `break` sẽ thoát hẳn khỏi vòng lặp.",
         order=1
@@ -326,6 +332,7 @@ print(power(3) + power(2, 3))""",
     q2_2 = QuizQuestion(
         quiz_id=quiz2.id,
         question_text="Đoạn code sau đây sẽ in ra bao nhiêu số?",
+        question_type="PRACTICE",
         code_snippet="""for i in range(1, 10, 2):
     print(i)""",
         test_cases=[
